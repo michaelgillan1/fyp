@@ -1,0 +1,12 @@
+
+\begin{tikzpicture}[auto,node distance=1.5cm]
+  \node[entity] (node1) {$\alpha$};
+  \node[entity] (node2) [below = of node1] {$\iota_1$};
+  \node[entity] (node3) [below = of node2]	{$\iota_2$};
+  \draw[->] (node1)
+    edge	 node {$x, \kappa$}    (node2);
+  \draw[->] (node2)
+    edge	 node {$f, \kappa'$}	(node3);
+  \draw[dashed,->] (node1)
+    edge[bend left=90]   node {$x.f, \kappa \triangleright \kappa'$} (node3);  
+\end{tikzpicture}

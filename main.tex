@@ -1,0 +1,69 @@
+\documentclass[a4paper, twoside, table]{report}
+
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{tikz}
+\usepackage{xcolor}
+\usepackage{pbox}
+
+\usetikzlibrary{er,positioning}
+\usetikzlibrary{shapes.misc}
+
+%% Sets page size and margins
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+%% Useful packages
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathpartir}
+\usepackage{csquotes}
+\usepackage{cite}
+\usepackage{titlesec}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{float}
+\usepackage{mathtools}
+
+\newcommand{\extract}{\mathrlap{-}\triangleright}
+
+
+\titleformat{\chapter}[block]
+  {\normalfont\huge\bfseries}{\thechapter.}{1em}{\Huge}
+\titlespacing*{\chapter}{0pt}{-19pt}{10pt}
+
+\title{Generics in Pony}
+\author{Michael Gillan}
+% Update supervisor and other title stuff in title/title.tex
+
+\begin{document}
+\input{title/title.tex}
+
+%\begin{abstract}
+%Your abstract goes here
+%\end{abstract}
+
+%\renewcommand{\abstractname}{Acknowledgements}
+%\begin{abstract}
+
+%\end{abstract}
+
+\tableofcontents
+%\listoffigures
+%\listoftables
+
+\input{introduction/introduction.tex}
+\input{background/background.tex}
+\input{interim/projectplan.tex}
+\input{interim/evaluationplan.tex}
+%\input{project/project.tex}
+%\input{evaluation/evaluation.tex}
+%\input{conclusion/conclusion.tex}
+%\input{appendix/appendix.tex}
+
+\bibliographystyle{unsrt}
+\bibliography{bibs/ProjectBackground}
+
+\end{document}

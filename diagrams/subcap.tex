@@ -1,0 +1,14 @@
+\begin{tikzpicture}[auto,node distance=1.5cm]
+  \node[entity] (iso) {\texttt{iso}};
+  \node[entity] (trn) [right = of iso] {\texttt{trn}};
+  \node[entity] (ref) [above right = of trn]{\texttt{ref}};
+  \node[entity] (val) [below right = of trn]{\texttt{val}};
+  \node[entity] (box) [above right = of val]{\texttt{box}};
+  \node[entity] (tag) [right = of box]{\texttt{tag}};
+  \draw[->] (iso) edge (trn);
+  \draw[->] (trn) edge (ref);
+  \draw[->] (trn) edge (val);
+  \draw[->] (ref) edge (box);
+  \draw[->] (val) edge (box);
+  \draw[->] (box) edge (tag);
+\end{tikzpicture}
