@@ -2,18 +2,26 @@
 
 \section{Motivations}
 
-There is inherent complexity in writing concurrent applications; care must be taken to prevent concurrent operations from interfering with each others' data as it could potentially create data races. The widely used solution this problem is explicit concurrency management through concurrency primitives. These require programmers to be able to reason about how threads will interact with each other, and to be constantly mitigating against concurrency issues. Despite this additional burden on programmers, they are exposed to risks such as deadlocking.
+There is inherent complexity in writing concurrent applications; care must be taken to prevent concurrent operations from interfering with each others' data as it could potentially create data races. The widely used solution this problem is explicit concurrency management through concurrency primitives. These require programmers to be able to reason about how threads will interact with each other, and to be constantly mitigating against concurrency issues. Despite this additional burden on programmers, they are exposed to risks such as deadlocking. \\
 
-Pony is an actor-model language that allows developers to write high-performance concurrent applications that are guaranteed to be data-race free. It uses a system of reference capability to enforce this at runtime; if the program compiles, it is data-race free.
+A solution to relieve the burden of concurrency on programmers is actor-based languages with capability systems; augmented type systems that can statically check that programs are data-race free. One such language is Pony, which uses a system called \textit{deny capabilities} to determines what can and cannot be done with every reference in a program. \\
 
-A number of formal models for Pony have been created to verify various aspects of its design. These models, collectively, guarantee a number of features of the language, but a single unified model does not yet exist. Additionally, the current model of generics supports F-bounded polymorphism, an alternative to which exists in the form of Materials/Shapes.
+Like many other object-oriented programming languages, Pony uses a system of generics based on bounding type variables by subtyping. This is powerful and expressive, but can lead to unsoundness and programmer burden, especially when types appear in their own type bounds. This is referred to as `f-bounded polymorphism`. Recently, alternative systems of generics have been developed, which constrain generic type variables using mechanics other than subtyping. \\
 
-\section{Objectives}
+One alternative to f-bounded polymorphism is to use type predicates to ensure the interfaces that types present to generic code have an expected structure, without creating a subtype relation between the type and the interface definition. This is the approach taken by Genus\cite{Zhang2015}, a highly expressive system of generics built on top of Java that uses type predicates (called \textit{constraints}) to bound type variables. \\
 
-We want to design a formal model of generics as they appear in Pony and investigate the replacement of its support of F-bounded polymorphism by adapting a novel, simpler and almost as powerful approach, called Materials/Shapes.
+We give a minimal formal specification of the ideas presented in Genus, and prove that it is sound. On top of this model, we introduce deny capabilities, resulting in a minimal, sound proof of concept that marries the major ideas from both systems.
 
-To this end, we aim to create a unified formal model that builds on the achievements of previous efforts to formalize Pony, and create the most encompassing model to date.
+\section{Contributions}
 
-We will then evaluate F-bounded polymorphism against Materials/Shapes and integrate a model of generics into the formal model we have created. If we can prove this model sound, we can then evaluate integrating this model into the Pony compiler.
+This project presents Genus-, a formal specification for the mechanism of genericity presented in Genus. We describe an augmented type system incorporating deny capabilities, DeGen, so as to provide an alternative to generics as they currently exist in Pony.
 
-%\section{Contributions}
+\begin{itemize}
+    \item We developed Genus-, a distilled, minimal formal model for the mechanism of genericity presented in Genus. This is an imperative model, which is more faithful to real programming languages and allows us to uncover more possibilities for unsoundness. It is described in Chapter \ref{chpt:genus-}
+    
+    \item We give a proof of soundness for Genus- in Section \ref{sec:genus-sound}. Genus does not have a proof of soundness, so this is a novel contribution that establishes Genus- as a valid basis for designing a more complex type system on top of.
+    
+    \item We designed DeGen, an augmented version of Genus- that includes deny capabilities. We describe the design process in \ref{chpt:degen} 
+    
+    \item We also give a formal description of DeGen in Chapter \ref{chpt:degen}, and discuss some thoughts about how we would show soundness and preservation of well-formed visibility. Our formal description includes a parametric formulation of viewpoints, based on previously established requirements.
+\end{itemize}

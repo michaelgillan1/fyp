@@ -37,7 +37,25 @@ A language that employees this sort of type system is Go, when checking against 
 
 A nominal type system is one in which type equivalence and compatibility is determined entirely by type declarations and names; two structurally identical types are not considered the same if they are declared with different names.
 
-Nominal typing is used for checking interfaces in Java. An equivalent situation to the structural type example is given below.
+The Java example given below shows that, although \texttt{Customer} and \texttt{Employee} are structurally identical, they cannot be assigned to each other.
+
+\begin{verbatim}
+  class Customer {
+    String name;
+  }
+
+  class Employee {
+    String name;
+  }
+
+  class Main {
+    public static void main(String[] args) {
+      Customer c = new Customer(); 
+      Employee e = new Employee();
+      c = e; // incompatible types
+    }
+  }
+\end{verbatim}
 
 \subsection{Union and Intersection Types}
 
@@ -60,12 +78,17 @@ Formally, we can use the concept of a record type, which describes the interface
 \inferrule{\sigma_1 \subseteq \rho_1, ..., \sigma_k \subseteq \rho_k}{\{x_1:\sigma_1, ...,  x_k:\sigma_k, ..., x_l:\sigma_l\} \subseteq \{x_1:\rho_1, ...,  x_k:\rho_k\} }
 \end{mathpar}
 
-Nominal subtyping is an explicitly defined subtype relation between two types. The below example from the Pony tutorial shows nominal subtyping in Pony; the relationship between ‘Bob’ and ‘Named’ is declared, and says that ‘Bob’ provides ‘Named’.
+Nominal subtyping is an explicitly defined subtype relation between two types. The below example shows nominal subtyping in Java; the relationship between ‘Bob’ and ‘Named’ is declared, and says that ‘Bob’ implements ‘Named’.
 \begin{verbatim}
-trait Named
-  fun name(): String => "Bob"
+interface Named {
+    public String name();
+}
 
-class Bob is Named
+class Bob implements Named {
+    public String name() {
+        return "Bob";
+    }
+}
 \end{verbatim}
 With nominal subtyping, it is the compiler’s responsibility to check that the subtype implements everything required by the subtyping relation.
 
@@ -122,32 +145,39 @@ The common example for this is the \texttt{+} operator; when applied to integers
 
 Since we know that subtypes present the same interface as their base type, polymorphism through subtyping allows a subtype to be used anywhere a supertype is expected. This is clear in the below example:
 \begin{verbatim}
-  class A
-  class B
-  class Pair
-    var fst: Any tag
-    var snd: Any tag
-  
-    new create(fst': Any tag, snd': Any tag) =>
-      this.fst = consume fst'
-      this.snd = consume snd'
-    
-    fun ref getfst() : Any tag =>
-      this.fst
+  class A {}
+  class B {}
 
-  actor Main
-    new create(env: Env) =>
-      var pairA : Pair ref = Pair.create(A.create(), A.create())
-      var pairB : Pair ref = Pair.create(B.create(), B.create())
+  class Pair {
+    Object fst;
+    Object snd;
+    
+    Pair(Object fst, Object snd) {
+        this.fst = fst;
+        this.snd = snd;
+    }
+    
+    Object getFst() {
+        return this.fst;
+    }
+  }
+
+  class Main {
+    public static void main(String[ ] args) {
+      Pair pairA = new Pair(new A(), new A());
+      Pair pairB = new Pair(new B(), new B());
+    }
+  }
 \end{verbatim}
-Both \texttt{A} and \texttt{B} can be stored using the same \texttt{Pair} class. However, all type information is lost once the reference is stored. The following execution produces an error, as \texttt{getfst()} will only return an \texttt{Any}.
+Both \texttt{A} and \texttt{B} can be stored using the same \texttt{Pair} class, as they are both subtypes of \texttt{Object}. However, all type information is lost once the reference is stored. The following execution produces an error, as \texttt{getFst()} will only return an \texttt{Object}.
 \begin{verbatim}
-    actor Main
-    new create(env: Env) =>
-      var pairA : Pair ref = Pair.create(A.create(), A.create())
-      
-      \\ error: Any tag is not a subtype of A tag
-      var a : A tag = pairA.getfst() 
+  class Main {
+    public static void main(String[] args) {
+      Pair pairA = new Pair(new A(), new A());
+        
+      A a = pairA.getFst(); // incompatible types
+    }
+  }
 \end{verbatim}
 
 \subsection{Parametric Polymorphism}
@@ -155,38 +185,64 @@ Both \texttt{A} and \texttt{B} can be stored using the same \texttt{Pair} class.
 Parametric polymorphism allows a single implementation of a function to work uniformly on many different types, which usually have some common structure. They are said to be \textit{generic} and accept type parameters as placeholders for types:
 
 \begin{verbatim}
-  class Pair[T]
-    var fst: T 
-    var snd: T 
-  
-    new create(fst': T, snd': T) =>
-      this.fst = consume fst'
-      this.snd = consume snd'
+  class Pair<T> {
+    T fst;
+    T snd;
     
-    fun ref getFst() : T =>
-      this.fst
+    Pair(T fst, T snd) {
+        this.fst = fst;
+        this.snd = snd;
+    }
+    
+    T getFst() {
+        return this.fst;
+    }
+  }
 
-  actor Main
-    new create(env: Env) =>
-      var pairA : Pair[A ref] ref = 
-        Pair[A ref].create(A.create(), A.create())
-      var a: A ref = pairA.getFst()
+  class Main {
+    public static void main(String[] args) {
+      Pair<A> pairA = new Pair(new A(), new A());
+        
+      A a = pairA.getFst(); // successful
+    }
+  }
 \end{verbatim}
 The above leads to a successful execution, as the type information about \texttt{fst} is preserved through the type parameter. The parameter \texttt{T} is unbounded, and ranges over all possible types.
 
 Bounded quantification allows us to specify type parameters that range over a subset of all types. Generally, this set is given by all subtypes of a given type.
 
 \begin{verbatim}
-  class Pair[T: Stringable box] is Stringable
-    var fst: T 
-    var snd: T 
-  
-    new create(fst': T, snd': T) =>
-      this.fst = consume fst'
-      this.snd = consume snd'
+  interface Stringable {
+    public String string();
+  }
+
+  class A implements Stringable {
+    public String string() {
+      return "A";
+    }
+  }
+
+  class Pair<T extends Stringable> implements Stringable {
+    T fst;
+    T snd;
     
-    fun string() : String iso^ =>
-      this.fst.string() + this.snd.string()
+    Pair(T fst, T snd) {
+      this.fst = fst;
+      this.snd = snd;
+    }
+    
+    public String string() {
+      return this.fst.string() + ", " + this.snd.string();
+    }
+  }
+
+  class Main {
+    public static void main(String[] args) {
+      Pair<A> pairA = new Pair(new A(), new A());
+         
+      System.out.println(pairA.string()); // "A, A"
+    }
+  }
 \end{verbatim}
 Here \texttt{T} can be any subtype of \texttt{Stringable}.
 
@@ -194,20 +250,99 @@ Here \texttt{T} can be any subtype of \texttt{Stringable}.
 
 Recursively bounded quantification, also known as f-bounded quantification, allows type parameters to appear in their own bounds.
 \begin{verbatim}
-  interface Equatable[A: Equatable[A] #read]
-    fun eq(that: box->A): Bool => this is that
+  interface Equatable<T extends Equatable<T>> {
+    public boolean eq(T that);
+  }
 \end{verbatim}
-In the above, the type parameter \texttt{A} is required to be a subtype of \texttt{Equatable[A]}. This means, if \texttt{String} were to implement \texttt{Equatable[String]}, it would require a method \texttt{fun eq(that: String box): Bool} (which would hopefully be more useful than the default implementation). This means that \texttt{Strings} are comparable to other \texttt{Strings} but not to, say, \texttt{Integers}.
+In the above, the type parameter \texttt{T} is required to be a subtype of \texttt{Equatable[T]}. This means, if \texttt{String} were to implement \texttt{Equatable[String]}, it would require a method \texttt{boolean eq(String that)}. This means that \texttt{Strings} are comparable to other \texttt{Strings} but not to, say, \texttt{Integers}.
 
 \subsection{Issues with F-Bounded Polymorphism}
 
 F-bounded polymorphism introduces type-checking complexities. It requires that inheritance to be recursive; \texttt{String} implements \texttt{Comparable<String>}, meaning it is defined in terms of its inherited type. When recursive inheritance is mixed with variance in type parameters, polymorphic subtyping becomes undecidable \cite{Kennedy2008}. However, this does not apply in Pony, due to type invariance relative to type parameters. 
 
-F-bounded polymorphism can lead to significant code complexity.
+F-bounded polymorphism can lead to significant code complexity. Below is an example of two classes taken from the \textit{FindBugs} \cite{FindBugs} open-source project.
 \begin{verbatim}
-    [Example to demonstrate this]
+    class AbstractVertex<
+        EdgeType extends AbstractEdge<EdgeType, ActualVertexType>, 
+        ActualVertexType extends AbstractVertex<EdgeType, ActualVertexType>> {...}
+    class AbstractEdge <
+        ActualEdgeType extends AbstractEdge<ActualEdgeType, VertexType>, 
+        VertexType extends AbstractVertex<ActualEdgeType, VertexType>> {...}
+\end{verbatim}
+The mutual dependency between \texttt{AbstractVertex} and \texttt{AbstractEdge} leads both classes to have very complex signatures.
+
+\section{Genus, Models and Constraints} \label{sec:genus-bg}
+
+An alternative generics mechanism to subtyping is presented in Genus \cite{Zhang2015}, a system where named constructs, called models, explicitly witness constraints. 
+
+\subsection{Constraints}
+
+In Genus, types are constrained using explicit \textit{type constraints} that exist as a predicate on types. To require that a type has, for example, an \texttt{equals(...)} method, the below constraint can be used:
+
+\begin{verbatim}
+  constraint Eq[T] {
+    boolean equals(T that);
+}
 \end{verbatim}
 
+This constraint can then be applied to type parameters to establish the ability to test equality on them:
+
+\begin{verbatim}
+  interface Set[T where Eq[T]] { ... }
+\end{verbatim}
+
+Thus, an instantiation of \texttt{Set} requires a model, supplied either implicitly by the compiler or chosen explicitly by the programmer, to witness that \texttt{Eq[T]} is satisfied by whatever the type argument \texttt{T} is.
+
+\subsubsection{Prerequisite Constraints}
+
+Constraints may have other constraints as their prerequisites, and the satisfaction of a constraint entails the satisfaction of its prerequisite constraints. For example, \texttt{Eq[T]} is prerequisite of \texttt{Comparable[T]}, and the relationship can be expressed as:
+
+\begin{verbatim}
+  constraint Comparable[T] extends Eq[T] {
+    int compareTo(T other);
+  }
+\end{verbatim}
+
+\subsection{Models}
+
+Models are witnesses of constraints that are provided with the type argument.
+
+\subsubsection{Natural Models}
+
+If a type structurally conforms to a constraint, i.e. already has the required operations, then it forms a natural model for the constraint. For example, \texttt{String} has a built-in \texttt{equals(...)} method, and so \texttt{Set[String]} can use this method for establishing equality.
+
+\subsubsection{Explicit Models}
+
+The programmer can create models to satisfy a constraint if a natural model does not exist or does not have the desired behaviour. For example, case-insensitive equality can be defined as a model for \texttt{Eq[String]}:
+
+\begin{verbatim}
+  model CIEq for Eq[String] {
+    bool equals(String str) {
+      return equalsIgnoreCase(str);
+    }
+  }
+\end{verbatim}
+
+Models can be extended and reused through model inheritance; a model for \texttt{Comparable[String]} can reuse the \texttt{CIEq} model for \texttt{Eq[String]}:
+
+\begin{verbatim}
+  model CICmp for Comparable[String] extends CIEq {
+    int compareTo(String str) {
+      return compareToIgnoreCase(str);
+    }
+  }
+\end{verbatim}
+Alternatively, \texttt{CICmp} could define its own \texttt{equals(...)} method.
+    
+The model chosen to witness a constraint on a type is contained as part of the type; this is illustrated below:
+
+\begin{verbatim}
+  Set[String] s0;
+  Set[String with CIEq] s1;
+  s1 = s0; // illegal assignment: different types.
+\end{verbatim}
+
+The model of equality chosen for each \texttt{Set} is a static part of the type, and so \texttt{s0} and \texttt{s1} represent different types.
 
 \section{Dependent Types}
 
@@ -263,7 +398,7 @@ A sound type system is one in which well-typed programs cannot lead to type erro
 
 \subsubsection{Subject Reduction}
 
-A type system with subject reduction says that the evaluation of expressions does not cause their type to change. This can be expressed formally with they type rule:
+A type system with subject reduction says that the evaluation of expressions does not cause their type to change. This can be expressed formally with the type rule:
 
 \begin{mathpar}
 \inferrule{\Gamma \vdash e_1 : \tau \\ e_1 \to e_2}{\Gamma \vdash e_2 : \tau}
@@ -281,7 +416,7 @@ By combining the above mechanisms, if we can show that a well-typed program \foo
 
 To prove that a generic type system is sound given a proof of soundness for a non-generic version for the same system, it is sufficient to show that any valid type instantiation on a generic declaration yields a valid concrete declaration \cite{Gordon2012} .
 
-\section{Concurrent Programs} \label{conrules}
+% \section{Concurrent Programs} \label{conrules}
 
 \section{Actor Based Models}
 
@@ -295,7 +430,7 @@ A solution to this problem is \textit{capabilities}. In the system proposed by \
 
 \subsubsection{Capabilities in Actor Based Models}
 
-We can use capabilities in actor based models to ensure data-race free programs. By ensuring that all references to an object have compatible capabilities, which can be ensured by the type system statically, we know that no two actors can access the same memory in a way that violates the rules described in \ref{conrules}.
+We can use capabilities in actor based models to ensure data-race free programs. By ensuring that all references to an object have compatible capabilities, which can be ensured by the type system statically, we know that no two actors can access the same memory in a way that causes a data-race.
 
 Capabilities in actor models give actors the ability to read, mutate, and send a reference safely. Only one actor may possess a mutable reference to an object at a time, and so to send a mutable reference, the sending actor must give up its reference to the object \cite{Srinivasana}.
 
@@ -359,7 +494,7 @@ The extracting adaptation introduced by Steed \cite{Steed2016} considers the cas
 
 \subsection{Aliasing and Unaliasing}
 
-\subsubsection{Temporary References}
+\subsubsection{Temporary References} \label{sec:bg-temp}
 
 Here, we distinguish between stable references, such as object fields and local variables, and temporary references, such as those created by the adaptations described above.
 

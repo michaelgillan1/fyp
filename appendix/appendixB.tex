@@ -1,0 +1,35 @@
+\chapter{Adaptation Solutions} \label{appendix:adaptation}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll|llllll}
+\multicolumn{2}{l|}{\multirow{2}{*}{$\kappa \triangleright \kappa'$}} & \multicolumn{6}{l}{\hfill$\kappa'$\hfill}                                                                \\
+\multicolumn{2}{l|}{}                                            & \textit{iso}  & \textit{trn}  & \textit{ref}  & \textit{val} & \textit{box} & \textit{tag} \\ \hline
+\multirow{8}{*}{$\kappa$}              & $\textit{iso}^-$       & $\textit{iso}^-$ & $\textit{iso}^-$ & $\textit{iso}^-$ & \textit{val} & \textit{val} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{iso}               & \textit{iso}  & \textit{iso}  & \textit{iso}  & \textit{val} & \textit{tag} & \textit{tag} \\ \cline{2-8} 
+                                    & $\textit{trn}^-$              & $\textit{iso}^-$ & $\textit{trn}^-$ & $\textit{trn}^-$ & \textit{val} & \textit{val} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{trn}               & \textit{iso}  & \textit{trn}  & \textit{trn}  & \textit{val} & \textit{box} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{ref}               & \textit{iso}  & \textit{trn}  & \textit{ref}  & \textit{val} & \textit{box} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{val}               & \textit{val}  & \textit{val}  & \textit{val}  & \textit{val} & \textit{val} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{box}               & \textit{tag}  & \textit{box}  & \textit{box}  & \textit{val} & \textit{box} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{tag}               & $\bot$        & $\bot$        & $\bot$        & $\bot$       & $\bot$       & $\bot$      
+\end{tabular}
+\caption{Solution for Viewpoint Adaptation \\ Reproduced from Steed2016}
+\end{table}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll|llllll}
+\multicolumn{2}{l|}{\multirow{2}{*}{$\kappa \extract \kappa'$}} & \multicolumn{6}{l}{\hfill$\kappa'$\hfill}                                                                \\
+\multicolumn{2}{l|}{}                                            & \textit{iso}  & \textit{trn}  & \textit{ref}  & \textit{val} & \textit{box} & \textit{tag} \\ \hline
+\multirow{8}{*}{$\kappa$}              & $\textit{iso}^-$       & $\textit{iso}^-$ & $\textit{iso}^-$ & $\textit{iso}^-$ & \textit{val} & \textit{val} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{iso}               & $\textit{iso}^-$  & \textit{val}  & \textit{tag}  & \textit{val} & \textit{tag} & \textit{tag} \\ \cline{2-8} 
+                                    & $\textit{trn}^-$              & $\textit{iso}^-$ & $\textit{trn}^-$ & $\textit{trn}^-$ & \textit{val} & \textit{val} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{trn}               & $\textit{iso}^-$  & \textit{val}  & \textit{box}  & \textit{val} & \textit{box} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{ref}               & $\textit{iso}^-$  & $\textit{trn}^-$  & \textit{ref}  & \textit{val} & \textit{box} & \textit{tag} \\ \cline{2-8} 
+                                    & \textit{val}               & $\bot$        & $\bot$        & $\bot$        & $\bot$       & $\bot$       & $\bot$       \\ \cline{2-8} 
+                                    & \textit{box}               & $\bot$        & $\bot$        & $\bot$        & $\bot$       & $\bot$       & $\bot$       \\ \cline{2-8} 
+                                    & \textit{tag}               & $\bot$        & $\bot$        & $\bot$        & $\bot$       & $\bot$       & $\bot$      
+\end{tabular}
+\caption{Optimal Solution for Extracting Adaptation \\ Reproduced from Steed2016}
+\end{table}

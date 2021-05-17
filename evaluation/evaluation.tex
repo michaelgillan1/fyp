@@ -1,1 +1,95 @@
-\chapter{Evaluation}
+\chapter{Evaluation and Conclusion}
+
+In this section we evaluate DeGen and Genus- relative to the two systems that inspired them, Pony and Genus, and discuss their merits as formal programming models. We discuss some aspects of future work that could be pursued.
+
+\section{In Relation to Pony}
+
+DeGen is a successor to $\textit{Pony}^{PL}$, the formal model of how generics currently exist in Pony. DeGen is designed as an alternative to $\textit{Pony}^{PL}$, showing how a new mechanic for generics can interact with deny capabilities. Since we designed our generic system first, and then applied deny capabilities to it, we have nearly no features that are unrelated to those two aspects. This means that $\textit{Pony}^{PL}$ contains far more features taken from Pony, such as named constructors. It also contains a full runtime description, which DeGen lacks. \\
+
+To evaluate how DeGen compares to Pony, we have taken a portion of the \texttt{List} class from the Pony Standard Library, and recreated it using DeGen. The original portion of \texttt{List} that we are considering is given in Appendix \ref{appendix:list}. Evaluating DeGen in this manner serves a dual purpose; we gain an understanding of how well DeGen can represent Pony programs, and we can also see important features that DeGen lacks. To this end, we have highlighted where it has been necessary to enhance DeGen to accurately recreate the behaviour of \texttt{list}. \\
+
+It is immediate to see that although DeGen represents quite a large subset of Pony features, some necessary mechanisms are still absent. In \texttt{index}, a function which gets the list element at a particular index, Pony uses type coercion to cast \texttt{node} to the desired return type. Viewpoint adaptation always returns a subtype of the operand type, and so here \texttt{this->ListNode[A]} is guaranteed to be compatible with \texttt{ListNode[A]}, the type of \texttt{\_head}. As a result, the method would type check correctly in DeGen even without the cast, but we highlight it here as it is a significant feature that is missing from DeGen. Also missing are various programming constructs such as loops and if-statements, which are highlighted in this example. \\
+
+The function \texttt{map} takes a lambda as a parameter and applies it to every element in a list.  Obviously this is an advanced feature of the language, and is not something we would want to model at this stage, but it serves to demonstrate a level of functionality that DeGen cannot achieve; there is no way to create higher-order functions like \texttt{map} in DeGen. Additionally, it is also interesting to consider the capability the function should have. Since it is being applied in a \textit{box} context, we would expect that it would likely also be a \textit{box} function. The capabilities of its parameter and return types come from the type arguments for \texttt{A} and \texttt{B}, and the type operators that are applied to them. \\
+
+The highlighted elements of Figure \ref{fig:degen-list} suggest aspects of Pony that we would ideally like to have in DeGen. In addition to these, Appendix \ref{appendix:list} demonstrates a number of features of Pony that are interesting, but unnecessary for developing the type system of Genus. There are numerous uses of '\texttt{?}' to indicate partial functions, another advanced language feature that allows Pony to handle errors in a succinct manner. For clarity, we have omitted all error handling from Figure \ref{fig:degen-list}. The syntax '\texttt{.>}' indicates method chaining, where calls to the same object can be combined for brevity. This allows Pony to have a much neater implementation of \texttt{pop}, which in DeGen requires a series of destructive reads to ensure the returned type aliases correctly.
+
+\begin{figure}
+    \centering
+    \input{diagrams/listings/list.tex}
+    \caption{\texttt{list} in DeGen}
+    \label{fig:degen-list}
+\end{figure}
+
+
+
+
+\section{In Relation to Genus} 
+
+Genus-, and DeGen by extension, present a minimisation of Genus, and so are less expressive by design. However, through this minimisation, we have established a subset of Genus features that we know to be sound.
+
+\begin{itemize}
+    \item Our model of Genus- is an imperative model, describing how the state is mutated by the execution of each expression. The formal definition of Genus is not imperative, and so our model is the first description of these behaviours.
+    \item Genus does not have a proof of soundness. While the original authors expressed their belief that the system is sound, this project has shown for certain that our distilled formalization is sound. 
+    \item Genus- does not contain models as named constructs, instead only using the natural (structural) model of each type. While we have shown in Section \ref{model-just} that our approach to removing models and simplifying Genus is generally valid, we do lose conciseness and some instances of expressiveness, such as expanders and models that take other models as parameters.
+    \item Genus- as a programming language is far less expressive system than Genus; Genus, being built on top of Java, is a far more feature-rich system. It also introduces a number of features that do not relate to its mode of generics that increase expressiveness, full existential types being a prime example. We have justified excluding these, but it would be a nice-to-have feature if DeGen is to be developed into a fully fledged programming language.
+    
+\end{itemize}
+
+
+\section{Feature Set}
+
+Table \ref{tab:comp} shows how DeGen compares to previous models of Pony and Genus in terms of features. While DeGen does lack a lot of mechanics common to many programming languages, it represents a large subset of relevant features from both Genus and Pony. We note that for both $\textit{Pony}^{PL}$ and DeGen, soundness and data-race freedom are assumed, but not proven; $\textit{Pony}^{PL}$ uses a translation to a non-generic base model, but this translation hasn't been proven sound, and DeGen assumes soundness from Genus- and data-race freedom from the formulation of capabilities in $\textit{Pony}^{GS}$.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{l|l|l|l|l|}
+\cline{2-5}
+                                                              & $\textit{Pony}^{PL}$ & $\textit{Pony}^{GS}$ & Genus       & DeGen \\ \hline
+\multicolumn{1}{|l|}{Sound}                                   & \LEFTcircle           & \CIRCLE           &             & \LEFTcircle      \\ \hline
+\multicolumn{1}{|l|}{Data-Race Free (Well-Formed Visibility)} & \LEFTcircle           & \CIRCLE           &             & \LEFTcircle      \\ \hline
+\multicolumn{1}{|l|}{Actors}                                  & \CIRCLE           & \CIRCLE           &             & \CIRCLE      \\ \hline
+\multicolumn{1}{|l|}{Capabilities}                            & \CIRCLE           & \CIRCLE           &             & \CIRCLE      \\ \hline
+\multicolumn{1}{|l|}{Destructive Read}                        & \CIRCLE           & \CIRCLE           &             & \CIRCLE      \\ \hline
+\multicolumn{1}{|l|}{Recovery}                                & \CIRCLE           & \CIRCLE           &             & \CIRCLE      \\ \hline
+\multicolumn{1}{|l|}{Union, Intersection, and Tuple types}    &                      & \CIRCLE           &             &       \\ \hline
+\multicolumn{1}{|l|}{Existential Typing}                      &                      &                      & \CIRCLE  &       \\ \hline
+\multicolumn{1}{|l|}{Generics}                                & \CIRCLE           &                      & \CIRCLE  & \CIRCLE      \\ \hline
+\multicolumn{1}{|l|}{Multiparamter Constraints}               &                      &                      & \CIRCLE  & \CIRCLE      \\ \hline
+\multicolumn{1}{|l|}{Multiple Constraints}                    & \CIRCLE           &                      & \CIRCLE  & \CIRCLE      \\ \hline
+\multicolumn{1}{|l|}{Natural Models}                          &                      &                      & \CIRCLE  & \CIRCLE      \\ \hline
+\multicolumn{1}{|l|}{Parametric Models}                       &                      &                      & \CIRCLE  &       \\ \hline
+\multicolumn{1}{|l|}{Retroactive Modelling}                   &                      &                      & \CIRCLE  &       \\ \hline
+\multicolumn{1}{|l|}{Model Inheritance}                       &                      &                      & \CIRCLE  &       \\ \hline
+\end{tabular}
+\caption{Feature Comparison for $\textit{Pony}^{PL}$, $\textit{Pony}^{GS}$, Genus, and DeGen}
+\label{tab:comp}
+\end{table}
+
+\section{Design Choices}
+
+Throughout the process of minimising Genus and designing DeGen, we made a number of choices that impacted the resulting systems. Here we discuss the choices we made, why we decided to make them, and what impact those choices had.
+
+\subsection{From Genus...}
+
+From the very beginning, our intention when designing Genus- was to create as simple a system as possible that had the same generic mechanism as Genus, while also maintaining enough expressiveness to allow us to reintroduce deny capabilities. \\
+
+We opted to create an imperative model rather than just a standalone type system. With our intention being to prove well-formed visibility, a judgement on the heap, when we reintroduced capabilities, we knew the model would need a runtime specification eventually. Upon reflection, it was not necessary to introduce the runtime system while we still only had Genus-; Genus itself is not an imperative model, and a large part of the early stages on this project focused on creating this imperative model and proving its soundness. Had we instead focused on cherry-picking the aspects of Genus we wanted and then introduced the runtime specification when we introduce capabilities, we may have had time to fully develop the imperative model of DeGen. \\
+
+A significant first step to our simplification of Genus was the decision to remove interfaces from the language entirely. Interfaces are used in examples in \cite{Zhang2015}, but the formal specification does not reference them at all. Our intuition told us they were unnecessary, due to the fact that interfaces in most programming languages and constraints in Genus play nearly equivalent roles. We created a translation, described in \ref{sec:translation} that showed this to be true, and that any interface declaration can be replaced by an equivalent constraint. However, there was a slight oversight in our reasoning that is demonstrated in Figure \ref{fig:degen-varbox}; unlike interfaces in other languages, we do not allow constraints to be used as types, and so they cannot be used as type arguments. This affects the case where we wish to apply binary functions to two different types which obey the same constraint. \\
+
+Once we decided we were going to remove interfaces, the next step was deciding how we would replace the behaviour they represent; we knew from our translation that we could replace interfaces as constraints, but it required us to augment the behaviour of constraints in a non-intuitive way. Interfaces such as \texttt{Set[A]} can only be represented by constraints in a meaningful way if we allowed the type variables that constraints act on to themselves be constrained. However, for constraints to properly act as predicates, constrained type variables can't be used as receivers. Section \ref{sec:mat-wit} gives an approach to witnessing that enabled us to reason about how we can manifest these requirements, with parametric constraints becoming either functions returning constraints (in the manner that parametric classes are commonly thought of), or multivariate predicates that impose conditions on their type variables. We opted to keep a single list of type variables for constraints and more complicated type rules, but upon reflection, it would have been more desirable to slightly simplify the type system, even at the cost of a messier syntax. \\
+
+The most significant decision we made concerning the minimisation of Genus was to remove models. Models supply a large part of the expressiveness of Genus, and so we carefully considered the implications of removing them; by the formulation in Section \ref{sec:mat-wit}, we knew the natural model of each type was sufficient to witness a constraint, and so we could . However, since a significant motivation for reformulating generics using Genus was reducing programmer burden, we wanted to ensure that removing models did not greatly increase the complexity of using Genus. Section \ref{model-just} represents a principled analysis of the features that we lose as a result of removing models, and how we can replace that behaviour. Not all behaviour can be recreated succinctly, such as parametric models, but there is not a significant increase in overall complexity. \\
+
+We initially started developing Genus- with existentially qualified types, but chose to remove them based on the complexity they added to the type system. Genus expands the functionality of use-site genericity far beyond what Java wildcards are capable of. However, the complexity of existential packing and capture conversion that existential type require outweighed their usefulness. Section \ref{sec:genus-types} provides justification for their removal with reference to the equivalence between universal and existential types. 
+
+\subsection{...to DeGen}
+
+After establishing Genus- as a sound base upon which we could further develop a more complex type system, the next step was to design how we would incorporate deny capabilities into Genus-. Since we intended DeGen to be an illustrative exploration of an alternate system of generics to the one that currently exists in Pony, we knew that DeGen must have the same system of concurrency as Pony, that of actors and messaging. Again for simplicity, we chose to model the smallest subset of features that accurately represent the deny capability system. We therefore don't introduce any features of Pony that do not relate to either actor-based execution or well-formed visibility. \\
+
+We undertook a design process to understand how capabilities interact with type variables in Pony by recreating the behaviour of a number of Genus- constraints, which we detail in Section \ref{pony-degen}. As a result of this principled analysis, which allowed us to reason about and understand the required capabilities of a number of constraints, we developed an idea of how capabilities should interact with constraints and type variables. \\
+
+The aspect of the design that required the most consideration was how we apply capabilities to constraints. We discovered that the simplest solution was also the most intuitive; constraints act as predicates on types that define the expected behaviour of those types. By extending this idea, it becomes clear that constraints can be used not only to say what a type can do, but also what we can do to the type. Type variables, therefore, should define what the program is permitted to do to a reference of that type. For example, the constraint \texttt{Box[B, T]} as defined in Figure \ref{fig:degen-varbox} requires that a witness must have \texttt{get} and \texttt{set} methods, and that its type argument \texttt{T} is immutable. We also allow capability constraints to be placed on the 'self' type variables. This design choice allows the programmer to require that the witnesses of certain constraints are, for example, sendable, if that was the intention of the constraint. \\
+
+

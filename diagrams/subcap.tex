@@ -1,13 +1,19 @@
 \begin{tikzpicture}[auto,node distance=1.5cm]
-  \node[entity] (iso) {\texttt{iso}};
-  \node[entity] (trn) [right = of iso] {\texttt{trn}};
-  \node[entity] (ref) [above right = of trn]{\texttt{ref}};
-  \node[entity] (val) [below right = of trn]{\texttt{val}};
-  \node[entity] (box) [above right = of val]{\texttt{box}};
-  \node[entity] (tag) [right = of box]{\texttt{tag}};
-  \draw[->] (iso) edge (trn);
-  \draw[->] (trn) edge (ref);
-  \draw[->] (trn) edge (val);
+  \node (iso-) {$\textit{iso}^-$};
+  \node (trn-) [above right = of iso-]{$\textit{trn}^-$};
+  \node (iso) [above = of iso-]{\textit{iso}};
+  \node (trn) [above = of trn-] {\textit{trn}};
+  \node (ref) [above right = of trn-]{\textit{ref}};
+  \node (val) [right = of ref]{\textit{val}};
+  \node (box) [above = of trn]{\textit{box}};
+  \node (tag) [above left = of box]{\textit{tag}};
+  \draw[->] (iso-) edge (trn-);
+  \draw[->] (iso-) edge (iso);
+  \draw[->] (iso) edge (tag);
+  \draw[->] (trn-) edge (ref);
+  \draw[->] (trn-) edge (trn);
+  \draw[->] (trn-) edge (val);
+  \draw[->] (trn) edge (box);
   \draw[->] (ref) edge (box);
   \draw[->] (val) edge (box);
   \draw[->] (box) edge (tag);

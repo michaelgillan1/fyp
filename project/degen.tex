@@ -1,0 +1,1037 @@
+\chapter{DeGen} \label{chpt:degen}
+
+In this chapter, we introduce DeGen (\textbf{De}ny Capability \textbf{Gen}us). DeGen takes the Genus- model we have detailed in Chapter \ref{chpt:genus-} and applies deny capabilities to it. We first begin with a study into how we would represent some of our Genus- examples in Pony, and then show how these are easily translated across to DeGen. We then give a syntax and type system for Degen updated from Genus-, and discuss how we would show that the proof of soundness still holds. We then introduce the concept of well-formed visibility, and discuss how we could show that it holds for DeGen. \\
+
+Our main focus when designing DeGen was the end goal of a concise formal system which can stand as an alternative form of generics to those that currently exist in Pony. By pursuing the design strategy of representing Genus- concepts in Pony first, we were empowered by the existing Pony compiler, which guided our decisions concerning how capabilities should be used and applied to Genus-. As such, all Pony examples in the section below as valid Pony programs that compile and run.
+
+\section{Pony} \label{pony-degen}
+
+\subsection{Classes and Constraints}
+
+\begin{figure}[H]
+    \centering
+    \begin{verbatim}
+    
+  interface Eq[T: Eq[T] #read]
+    fun box eq(other: T): Bool
+  
+  class IntPair
+    var fst: U32 val
+    var snd: U32 val
+  
+    new box create(fst': U32, snd': U32) =>
+      this.fst = fst'
+      this.snd = snd'
+    
+    fun box eq(other: IntPair box) : Bool =>
+      (this.fst == other.fst) and (this.snd == other.snd)
+
+  actor Main
+    new create(env: Env) =>
+      var pairA : IntPair box = IntPair.create(1, 2)
+      var pairB : IntPair box = IntPair.create(1, 2)
+      env.out.print(check[IntPair box](pairA, pairB)) // "true"
+      
+    fun box check[T : Eq[T] #read](a : T, b : T) : String val =>
+      if a.eq(b) then 
+        "true"
+      else 
+        "false"
+      end
+    \end{verbatim}
+    \caption{\texttt{Eq}, \texttt{IntPair} and calling code in Pony}
+    \label{fig:pony-eq}
+\end{figure}
+
+Figure \ref{fig:pony-eq} shows how we can represent \texttt{IntPair} and its equality constraint in Pony. We can see that instead of using a constraint to require equality as in Genus-, we must resort back to the using an interface. The interface has a single type parameter \texttt{T}, which is bounded using f-bounded polymorphism. The \texttt{\#read} capability constraint in the generic parameters says that not only must \texttt{T} implement \texttt{Eq[T]}, it must also have a capability that allows it to be read from, i.e. it must be \textit{box, val}, or \textit{ref}. The capability of \texttt{T} will be passed as part of the type argument, so we do not specify what capability \texttt{other} will have - it will be the same as the type argument. Requiring some form of readability is sensible here, as we want to allow our equality method to be able to freely read fields from the parameter, however we do not want anyone who implements the interface to be able to mutate the parameter. The equality method is a \textit{box} method, meaning that the receiver must have a \textit{box} capability, or a capability that is a subcapability of \textit{box}. \textit{box} references are immutable, and so if the receiver is a \textit{box}, the method cannot mutate any state. \\
+
+Moving down to \texttt{IntPair}, we see immediately that it does not explicitly implement anything. In Pony, interfaces are determined by structural typing, much the same as Genus- constraints. Therefore, as long as it implements all the methods required by \texttt{Eq}, it can be used anywhere that interface is expected. The fields \texttt{fst} and \texttt{snd} both have \textit{val} capabilities, meaning there can be no mutable references to them; including the capability here is unnecessary, because U32 is a primitive type, and so no reference of any kind can exist to the fields. \\
+
+Constructors in Pony use capabilities differently to normal methods; rather than specifying the required capability of the receiver, it specifies the capability of the reference to the new object that is returned to the calling code. If omitted, class constructors default to \textit{ref} and actor constructors default to \textit{tag}. However, we can override this default by explicitly specifying which capability we want the reference to have. In the code above, we have nothing which mutates any reference to an \texttt{IntPair}, so we specify we want an \texttt{IntPair} \textit{box} from the constructor. \\
+
+The method \texttt{check} is a \textit{box} method because we want to ensure it does not mutate any code. It takes a type parameter \texttt{T} with a \texttt{\#read} capability constraint; we want \texttt{check} to be able to take any type parameter that allows us to call its equality method while also guaranteeing we won't mutate it. The calling code for \texttt{check} gives \texttt{IntPair box} as the argument, which is a valid type. \\
+
+\newpage
+
+\begin{figure}[H]
+    \centering
+    \begin{verbatim}
+    
+  constraint Eq[T #any] {
+    box equals(T other) : Bool
+  }
+  
+  class IntPair {
+    int fst val;
+    int snd val;
+    box equals(IntPair box other) : bool {
+      return this.fst == other.fst && this.snd == other.snd;
+    }
+  }
+  
+  actor Main {
+    main() : void {
+      pairA = new IntPair(fst=1, snd=2) box;
+      pairB = new IntPair(fst=1, snd=2) box;
+      this.check[IntPair](pairA, pairB) // "true"
+    }
+    
+    box check[T where Eq[T]](T a, T b) : String val {
+        if (a.eq(b)) {
+          return "true"
+        } else {
+          return "false"
+        }
+    }
+  }
+  
+    \end{verbatim}
+    \caption{\texttt{Eq}, \texttt{IntPair} and calling code in DeGen}
+    \label{fig:degen-eq}
+\end{figure}
+
+Figure \ref{fig:degen-eq} shows how we can apply ideas from the Pony implementation of \texttt{IntPair} to Genus- to give us a DeGen respresentation. \texttt{Eq} and \texttt{IntPair} have the same implementation as in the previous chapter, with the addition of capabilities. We have also changed the method syntax to avoid confusion between the method capability and the return type capability. \\
+
+\texttt{Eq} is not a direct counterpart of the interface in Figure \ref{fig:pony-eq}; the interface has a type parameter \texttt{T} which is used to give the type of \texttt{other} in the \texttt{eq} method, whereas the parameter \texttt{T} in the constraint in Figure \ref{fig:degen-eq} instead represents the class that witnesses the constraint. This difference is subtle, but says that, in order for a type to witness the \texttt{Eq} constraint, not only must it be structurally correct, it must also be readable. The parameter passed must also be readable by extension. In addition to this requirement, it also means we cannot test equality against two objects of different classes, which is discussed more when we discuss Figure \ref{fig:degen-varbox}. \\
+
+When creating objects, we copy the behaviour of Pony that we can specify the capability of the new reference. We do this by placing the capability after the type. We create two \texttt{IntPair box}, as we did in Pony. \\
+
+\newpage
+
+\subsection{Multivariate Constraints}
+
+\begin{figure}[H]
+    \centering
+    \begin{verbatim}
+    
+  use "collections"
+  
+    interface AbstractVertex[
+        EdgeType :
+          AbstractEdge[ActualVertexType, EdgeType],
+        ActualVertexType : 
+          AbstractVertex[EdgeType, ActualVertexType]]
+      fun box outgoingEdges() : this->List[EdgeType]
+      fun box incomingEdges() : this->List[EdgeType]
+  
+    interface AbstractEdge[
+        VertexType : 
+          AbstractVertex[ActualEdgeType, VertexType],
+        ActualEdgeType : 
+          AbstractEdge[VertexType, ActualEdgeType]]
+      fun box source() : this->VertexType
+      fun box sink() : this->VertexType
+  
+    class Vertex
+      var _out : List[Edge] ref 
+      var _in : List[Edge] ref
+      fun box outgoingEdges() : this->List[Edge]  => _out
+      fun box incomingEdges() : this->List[Edge] => _in
+      new ref create(outList : List[Edge], inList : List[Edge]) =>
+        _out = outList
+        _in = inList
+  
+    class Edge
+      var _source : Vertex ref
+      var _sink : Vertex ref
+      fun box source() : this->Vertex => _source
+      fun box sink() : this->Vertex => _sink
+      new ref create(source' : Vertex, sink' : Vertex) =>
+        _source = source'
+        _sink = sink'
+  
+    actor Main
+      new create(env: Env) =>
+        var v1 : Vertex ref = Vertex.create(List[Edge].create(),
+            List[Edge].create())
+        var v2 : Vertex ref = Vertex.create(List[Edge].create(),
+            List[Edge].create())
+        var e : Edge ref = Edge.create(v1, v2)
+        env.out.print(check[Edge, Vertex](e, v1, v2)) // "done"
+      
+      fun box check[E : AbstractEdge[V, E] ref, 
+          V : AbstractVertex[E, V] ref](e : E, v1 : V, v2 : V) : String val =>
+        v1.outgoingEdges().push(e)
+        v2.incomingEdges().push(e)
+        "done"
+ 
+    \end{verbatim}
+    \caption{\texttt{Vertex}, \texttt{Edge}, and calling code in Pony}
+    \label{fig:pony-graphlike}
+\end{figure}
+
+In Figure \ref{fig:pony-graphlike} we attempt to recreate the behaviour of the \texttt{GraphLike} constraint. The constraint is intended to create a predicate on the behaviour of two classes; together they provide the behaviours required to represent a graph structure in code. To replicate this guarantee in Pony, which uses f-bounded polymorphism, we need very complex type bounds. Take \texttt{AbstractVertex} for example. It has 2 type parameters, \texttt{EdgeType} and \texttt{ActualVertexType}. \texttt{EdgeType} the type of the in- and out-going edges from the vertex, is bounded by \texttt{AbstractEdge[ActualVertexType, EdgeType]}, and \texttt{ActualVertexType} is bounded by\texttt{AbstractVertex[EdgeType,} \\ \texttt{ActualVertexType]}. This means that \texttt{AbstractVertex} can use any \texttt{AbstractEdge} that takes its \texttt{ActualVertexType} and itself as arguments, and its \texttt{ActualVertexType} must be an \texttt{AbstractVertex} taking the same arguments. This is known as "generic clutter", and is required to express the mutual dependency between the vertex and edge types. \texttt{AbstractEdge} is defined in similar terms. \\
+
+We don't provide capability constraints to any of the type parameters in the two interfaces, thus they get the default constraint of \texttt{\#any}. We could safely give the type paramters a \texttt{\#read} constraint, but chose to omit this in preference of not making the definitions even harder to read. \\
+
+The classes \texttt{Vertex} and \texttt{Edge} structurally implement the interfaces \texttt{AbstractVertex} and \\ \texttt{AbstractEdge} respectively, and the codependency they require; \texttt{Edge} implements \\ \texttt{AbstractEdge[Vertex, Edge]}, and \texttt{Vertex} implements \texttt{AbstractVertex[Edge, Vertex]}. Since the implementation, and thus the codependency, is structural, the classes themselves are relatively simple, with each directly using the other for field and return types. \\
+
+Another feature this example introduces is the viewpoint adaptation \texttt{this->}. The getters for the lists of edges and vertexes are all \textit{box} methods. This means that not only can it be called with a \textit{box} receiver, it can be called with a \textit{ref} or \textit{val} receiver as well (due to subcapabilities). The viewpoint \texttt{this->Vertex} in \texttt{Edge} therefore means "a \texttt{Vertex} as viewed by \texttt{this}". Since the default capability is \textit{ref} (as none is specified in the class declaration), this means the return type is a \texttt{Vertex} with the capability \texttt{this->}\textit{ref}. Thus, we return a \textit{box} when \texttt{this} is a \textit{box}, a \textit{val} when \texttt{this} is a \textit{val}, and a \textit{ref} when \texttt{this} is a \textit{ref}. This pairwise type equality is required for us to be able to return a readable field when the receiver is readable. \\
+
+\newpage
+
+\begin{figure}[H]
+    \centering
+    \begin{verbatim}
+    
+  constraint GraphLike[V #any, E #any] {
+    box V.outgoingEdges() : this->List[E];
+    box V.incomingEdges() : this->List[E];
+    box E.source() : this->V;
+    box E.sink() : this->V;
+  }
+    
+  class Vertex {
+    List[Edge] _out ref;
+    List[Edge] _in ref;
+    box outgoingEdges() : this->List[Edge] {
+      return _out;
+    }
+    box incomingEdges()  : this->List[Edge] {
+      return _in;
+    }
+  }
+        
+  class Edge {
+    Vertex _source ref;
+    Vertex _sink ref;
+    box source() : this->Vertex {
+      return _source;
+    }
+    box sink() this->Vertex {
+      return _sink;
+    }
+  }
+    
+  actor Main {
+    main() : void {
+      v1 = new Vertex(_out={}, _in={}) ref;
+      v2 = new Vertex(_out={}, _in={}) ref;
+      e = new Edge(_source=v1, _sink=v2) ref;
+      this.do[Vertex, Edge](e, v1, v2) // "done"
+    }
+
+    box check[V ref, E ref where Graphlike[V, E]](E e, V v1, V v2) : String val {
+      v1.outgoingEdges().add(e);
+      v2.incomingEdge().add(e);
+      return "done";
+    }
+  }
+    \end{verbatim}
+    \caption{\texttt{GraphLike}, \texttt{Vertex}, \texttt{Edge}, and calling code in DeGen}
+    \label{fig:degen-graphlike}
+\end{figure}
+
+It is in Figure \ref{fig:degen-graphlike} that the true  beauty of constraints is realised; we can replace several lines of generic clutter with a single succinct, multivariate constraint. The design is far cleaner, and the way in which it works is far more obvious. We include the \texttt{\#read} capability constraints, which no longer provide additional clutter. The methods are defined similarly to in the above interfaces, with the same method capabilities and viewpoint adapted return types. \\
+
+In this example, we take a liberty with the use of \texttt{List}, referencing it freely without defining it. We assume it to be a class with a single type parameter to represent the type of its elements, and that \texttt{\{\}} represents an empty list. \\
+
+We can also see that in the type parameters, we use \textit{ref} as a capability constraint; this is valid, and all other capabilities can also be used in place of a constraint. A valid argument is any capability that is a subcapability of the constraint, be it a singular constraint such as \textit{ref}, or a grouped constraint such as \texttt{\#read}. \\
+
+\newpage
+
+\subsection{Parametric Constraints and Classes}
+
+\begin{figure}[H]
+    \centering
+    \begin{verbatim}
+    
+  interface Eq[T: Eq[T] #read]
+    fun eq(other: T): Bool
+
+  interface Box[T : Eq[T] #read] is Eq[Box[T]]
+    fun box get() : this->T
+    fun ref set(item : T) : T
+
+  class Num
+    var x : U32 val
+    fun box eq(other : Num) : Bool =>
+      x == other.x
+    new ref create(x' : U32) =>
+      x = x'
+    
+  class VarBox[T : Eq[T] #read] is Box[T]
+    var item : T
+  
+    new ref create(item' : T) =>
+      item = item'
+  
+    fun box eq(other: Box[T] ref): Bool =>
+      item.eq(other.get())
+    
+    fun box get() : this->T => item
+    fun ref set(item' : T) : T =>
+      item = item'
+
+  class NumBox is Box[Num]
+    var item : Num ref
+    new create(item' : Num ref) =>
+      item = item'
+  
+    fun eq(other: Box[Num]): Bool =>
+      item.eq(other.get())
+
+    fun box get() : this->Num => item
+    fun ref set(item' : Num) : Num =>
+      item = item'
+
+  actor Main
+    new create(env: Env) =>
+      var vbox : VarBox[Num] = VarBox[Num].create(Num.create(14))
+      var nbox : NumBox = NumBox.create(Num.create(15))
+      env.out.print(check[Box[Num]](vbox, nbox)) // "false"
+      
+    fun check[T : Eq[T] #read](a : T, b : T) : String val =>
+      if a.eq(b) then 
+        "true"
+      else 
+        "false"
+      end
+    \end{verbatim} 
+    \caption{\texttt{Box}, \texttt{VarBox}, \texttt{NumBox}, and calling code in Pony}
+    \label{fig:pony-varbox}
+\end{figure}
+
+In Figure \ref{fig:pony-varbox} we have adapted the \texttt{Box} \footnote{Not to be confused with the \textit{box} capability.} constraint and its related classes for Pony. However, instead of \texttt{StringBox} as previously, we have instead created a class \texttt{Num} and a wrapper for \texttt{U32}s, as \texttt{String} is an in-built type in Pony, and creating our own class allows us to implement our own version of equality. \\
+
+To build the \texttt{Box} interface whilst ensuring we can test equality on any \texttt{Box}, we have used Pony's interface inheritance to ensure that classes that implement \texttt{Box} also implement \texttt{Eq}. However, since we specify that \texttt{Box[T] is Eq[Box[T]]}, the parameter of the \texttt{eq} method in any class that implements \texttt{Box[T]} must be of type \texttt{Box[T]}. For example, if we were to make \texttt{other} in \texttt{VarBox[T]}'s \texttt{eq} method type \texttt{VarBox[T]}, the compiler would complain that it doesn't correctly implement \texttt{Box[T]}. Likewise, \texttt{NumBox} must have the parameter type as \texttt{Box[Num]}. \\
+
+We have two classes, \texttt{VarBox} and \texttt{NumBox}  that both implement \texttt{Box} in some form. \texttt{NumBox} specifies explicitly that it is a \texttt{Box} with type parameter \texttt{Num}, and as such provides all the methods to structurally conform to \texttt{Box[Num]}. \texttt{VarBox}, on the other hand, implements \texttt{Box[T]}, and so does not replace any occurrences of the type parameter in the \texttt{Box} interface. It uses the parameter \texttt{T} as the type of its field, also omitting the capability that will be passed with the type argument. Note that when the \texttt{VarBox} is initialised in \texttt{Main}, the capability is omitted. This means the capability defaults to \textit{ref}. When \texttt{vbox} is created, \texttt{Num} is passed as the type parameter to \texttt{VarBox}, meaning \texttt{vbox} implements \texttt{Box[Num]}. As a result, \texttt{check} requires only a single type parameter, which we pass \texttt{Box[Num]} to, as both \texttt{vbox} and \texttt{nbox} implement this interface, meaning we can compare equality on two 'different' classes\footnote{'Different' is in quotes here because the difference is syntactic; passing \texttt{Num} as type argument for \texttt{T} in \texttt{VarBox} makes is semantically identical to \texttt{NumBox}. However, either could contain additional behaviour unrelated to \texttt{Box} and that would not affect the comparison.}. \\
+
+We can see that the setter method on \texttt{Box} is a \textit{ref} method, which it needs to be because it mutates state. We also make the \texttt{item} field in \texttt{NumBox} \textit{ref}, to ensure the pairwise type equality for the viewpoints that we discussed earlier. \\
+
+\newpage
+
+\begin{figure}[H]
+    \centering
+    \begin{verbatim}
+    
+  constraint Eq[T #any] {
+    box equals(T other) : bool
+  }    
+  constraint Box[B #any, T #read where Eq[T]] extends Eq[B] {
+    box B.get() : this->T;
+    ref B.set(T obj) : void;
+  }
+  
+  class Num {
+    int val x;
+    box equals(Num other) : bool {
+      return x == other.x
+    }
+  }
+ 
+  class VarBox[T #read where Eq[T]] {
+    T item;
+    box get() this->T {
+      return this.item;
+    }
+    ref set(T obj) : set {
+      this.item = obj;
+    }
+    box equals(VarBox[T] other) : bool {
+      return this.item.equals(other.item);
+    }
+  }
+    
+  class NumBox {
+    Num item ref;
+    box get() : this->Num {
+      return this.item;
+    }
+    ref set(Num obj) : void {
+      this.item = obj;
+    }
+    box equals(NumBox other) : bool {
+      return this.item.equals(other.item);
+    }
+  }
+  
+  actor Main {
+    void main() {
+      vbox = new VarBox[Num ref](item = new Num(x=14) ref) ref;
+      nbox = new NumBox(item = new Num(x=15) ref) ref;
+    
+      this.check[Num ref](vbox.get(), nbox.get()); // "false"
+    }
+    String check[T #read where Eq[T]](T a, T b) {
+        if (a.eq(b)) {
+          return "true"
+        } else {
+          return "false"
+        }
+    }
+  }
+    \end{verbatim}
+    \caption{Box, VarBox, NumBox and calling code in DeGen}
+    \label{fig:degen-varbox}
+\end{figure}
+
+When translating this behaviour to DeGen we use entailed constraints to represent the relationship between \texttt{Eq} and \texttt{Box} - any class that witnesses \texttt{Box} must also witness \texttt{Eq}. \texttt{Box} has a self parameter \texttt{B}, and the constraint requires a witness would have the \texttt{get} and \texttt{set} method as above. It also has a type parameter \texttt{T} that is constrained with equality, and represents the type of \texttt{Box}'s field. \\
+
+Again, we have a class \texttt{Num}, and all capability choices are the same as in the previous example. The interesting point of this example is the limitation of DeGen that it exposes. When comparing equality on \texttt{vbox} and \texttt{nbox}, we cannot directly compare the two and invoke their \texttt{eq} methods on each other. Instead we must use their \texttt{get} methods to test equality on their items. This is due to the lack of interfaces in DeGen; constraints cannot be used directly as types and instead constrain type variables. We cannot have a parameter type be \texttt{Box[T]} as this isn't a valid type. Therefore, we cannot invoke the equals method of \texttt{VarBox[Num]} on \texttt{NumBox}, despite them being the essentially the same. While this is a limitation in the expressiveness of DeGen, we can argue in its favour. When comparing equality of two distinct classes, the only way such an operation would make sense is if the classes had some aspect that is the same (the \texttt{Num} field in this case). It is therefore obvious that we don't want to compare the classes themselves, but instead we wish to compare the aspects of them which are the same. Thus, we obtain the same behaviour by extracting and comparing the fields directly. \\
+
+\newpage
+
+\section{Syntax}
+
+\subsection{Actors}
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+        &Programs & \texttt{P} &::= \overline{\texttt{CO}} \: \overline{\texttt{CL}} \: \highlight{\overline{\texttt{A}}} \\
+        &Actors & \texttt{A} &::= \highlight{\texttt{actor} \: A[\beta] \: \{\overline{\texttt{fld}} \: \overline{\texttt{methSig}} \: \overline{\texttt{behave}}\}} \\
+        &Constraints & \texttt{CO} &::= \texttt{constraint} \: C_1[\overline{\texttt{X} \; \highlight{v}} \; \texttt{where} \; \overline{C_2[\overline{\texttt{Y}}]}] \: \\ & & &\quad\quad\quad\quad\texttt{extends} \: C_3[\overline{\texttt{Z}}] \; \{ \overline{\texttt{methSig}} \; \highlight{\overline{\texttt{behaveSig}}} \} \\
+        &Behaviour \; Signature & \texttt{behaveSig} &::= \highlight{\tau_1.b[\beta](\overline{\tau_2})} \\
+        &Behaviour & \texttt{behave} &::=\highlight{ \texttt{behaveSig} \; \{ \texttt{e} \} }\\
+        &Method \; Signature & \texttt{methSig} &::= \tau_2.m[\beta](\overline{\tau_3}) \highlight{: \tau_1} \\
+        &Generic \; Parameters & \beta &::= \overline{\texttt{X} \:\highlight{v}} \; \texttt{where} \; \overline{C[\overline{\tau}]}
+    \end{align*}
+    \begin{align*}
+        &Actor \: Names & &\highlight{A} & &Behaviour \: Names & &\highlight{b}
+    \end{align*}
+    \caption{Syntax}
+    \label{fig:degen-actors}
+\end{figure}
+
+DeGen introduces actors into the Genus- model, and Figure \ref{fig:degen-actors} gives the syntax for them. We have highlighted new additions. \\
+
+Programs now consist of constraint, class, and actor definitions. Actors have generics parameters, fields, and methods the same classes, but have an additional sequence of definitions: behaviours. Note that actors do not have an \texttt{extends} clause, and as a result there is no subtype relation between actors. \\
+
+Behaviours are similar to functions, except that behaviour calls are asynchronous; calling a behaviour on any actor will execute it at some indeterminate point in the future, as the actor processes its message list. Behaviour signatures therefore do not have return types, and instead consist solely of a receiver type, a behaviour name, generic parameters, and parameter types. We have also altered the method signature syntax to reflect the changes discussed in the previous section. \\
+
+Actors can witness constraints in much the same way as classes, so constraints also contain a sequence of behaviour signatures in addition to method signatures. \\
+
+The generic parameters of classes, constraints, actors, and methods now require capability constraints on the type variables, represented by $v$.
+
+\subsection{Syntax of Expressions}
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+        &Expressions & \texttt{e} &::= x \; | \; \texttt{e}.f \; | \; \texttt{e}.f \: = \: \texttt{e} \; | \; \texttt{this} \; | \; \highlight{\texttt{null}} \; | \; \texttt{new} \: L[\overline{\tau}]( \overline{f = \texttt{e}} ) \highlight{\kappa} \; | \\ & & &\quad\quad\quad \highlight{\texttt{new} \: A[\overline{\tau}]( \overline{f = \texttt{e}} )} \; | \; \texttt{e}.m[\overline{\tau}](\overline{\texttt{e}}) \;  | \; \highlight{\texttt{e}.b[\overline{\tau}](\overline{\texttt{e}}) \; | \; \texttt{recover e}} \\
+    \end{align*}
+    \caption{Syntax of Expressions}
+    \label{fig:degen-expr}
+\end{figure}
+
+In Figure \ref{fig:degen-expr} we give an expanded syntax for expressions to incorporate the new behaviour capabilities has introduced. We have added a capability to the expression \texttt{new} to represent the capability of the returned reference. We have created syntax for behaviour calls, which is nearly identical to that of method calls. Finally, we have \texttt{recover}, which allows us to recover mutable types back to isolated references (or any capability). \\
+
+We have also introduced \texttt{null}. Previously, we had no need for \texttt{null} in Genus-, as we required that all fields on an object be initialised at creation, and so at no point would any reference be a null pointer. However, now we are working with actors, we have weakened this constraint, for reasons we will discuss in later. \\
+
+In addition to the new and updated expressions, the behaviour of field write is modified to support destructive reads. Instead of a field write returning the written expression, it returns the previous value of the field before the write. This value is unaliased at this point, and so allows us to do things such as send \textit{iso}s between actors by performing a destructive read when passing the \textit{iso} as a parameter to a behaviour. 
+
+\subsection{Syntax of Types}
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+        &Types & \tau &::= \texttt{X} \: | \: \highlight{D[\overline{\tau}] \; \kappa \; | \; \tau+ \; | \; \tau- \; | \; \texttt{V}\triangleright\tau \; | \; \texttt{V}\extract\tau \; | \; \textit{recover} \; \tau} \\
+        &Type \; Identifiers & D &::= \highlight{L \; | \; A} \\
+        &Capabilities & \kappa &::= \highlight{\textit{iso} \: | \: \textit{trn} \; | \; \textit{ref} \; | \; \textit{val} \; | \; \textit{box} \; | \; \textit{tag} \; | \; \textit{iso}^- \; | \; \textit{trn}^-} \\
+        &Capability \; Constraints & \textit{v} &::= \highlight{\textit{\#any} \; | \; \textit{\#read} \; | \; \textit{\#send} \; | \; \textit{\#share} \; | \; \textit{\#alias} \; | \; \textit{\#any}^- \; | \; \textit{\#send}^-} \\
+        &Viewpoints & \texttt{V} &::= \highlight{\kappa \; | \; \tau \; | \; \texttt{this}} \\
+        &Type \; Environments & \Gamma &::= \overline{\texttt{X} \; \highlight{v}}
+    \end{align*}
+    \caption{Syntax of Types}
+    \label{fig:degen-types}
+\end{figure}
+
+Each type in DeGen has an associated capability, which specify how a reference of that type may be used. Classes are the same as previously, with each type argument also having an associated capability. \\
+
+Type variables can still be used in place of any type where they are in scope. As a result, type variables do not have capabilities, but their arguments are required to. We saw in Figure \ref{fig:degen-varbox} that instantiating a \texttt{VarBox[T]} with \texttt{Num ref} replaces each instance of \texttt{T} with \texttt{Num ref}. \\
+
+We also define 5 operators that can act on types. Aliasing (+) and unaliasing (-) represent their associated operations; aliasing an \textit{iso} would result in a \textit{tag}, and so \texttt{(IntPair iso)+} and \texttt{IntPair tag} are semantically equivalent. Unaliasing an \textit{iso} would result, unsurprisingly, in an $\textit{iso}^-$. The next two operators are adaptations: viewpoint adaptation $\triangleright$ and extracting adaptation $\extract$. We have seen viewpoint adaptation in previous examples as \texttt{->}; it is used in cases where the reference capability of the origin is unknown. The extracting adaptation $\extract$, introduced by Steed201X, gives the capability of a value returned following a destructive read. Finally, we have an operator \textit{recover}, where \textit{recover} $\tau$ is the type we get after recovering from an expression. \\
+
+The capabilities we define are the expected deny capabilities described earlier in this report, and in previous models of deny capability systems, including Pony. The capability constraints are as expected also, but with two additional constraints $\textit{\#any}^-$ and $\textit{\#send}^-$ to represent any ephemeral (unaliased) capability and any sendable ephemeral capability respectively. \\
+
+Viewpoints can be either another capability, a type, or \texttt{this}. When using a type we use only the capability of that type; \texttt{IntPair->ref} would give \texttt{ref->ref}, as the default capability of \texttt{IntPair} is \textit{ref}. We can also use a type variable here, where the capability is not yet known, but will be known at runtime. Using \texttt{this} as a viewpoint refers to the receiver capability, as discussed previously. \\
+
+Type environments now keep track of not only what type variables are in scope, but also each type variable's respective capability constraint.
+
+\newpage
+
+\section{Type System}
+
+\subsection{Subcapabilities and Capability Constraints}
+
+Here we specify a number of relations on capabilities that will allow us to update previous rules from Genus-. Firstly, the subcapability relation, reproduced from Steed2016, is shown in Figure \ref{fig:degen-subcap}.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule{ }{\textit{iso}^- \leqslant \{\textit{iso}, \textit{trn}^-\}}
+        \and
+        \inferrule{ }{\textit{trn}^- \leqslant \{\textit{trn}, \textit{ref}, \textit{val}\}}
+        \and
+        \inferrule{ }{\{\textit{trn}, \textit{ref}, \textit{val} \} \leqslant \textit{box}}\and
+        \inferrule{ }{\{\textit{iso}, \textit{box} \} \leqslant \textit{tag}}
+        \and
+        \inferrule{ }{\kappa \leqslant \kappa}
+        \and
+        \inferrule{\kappa \leqslant \kappa' \\ \kappa' \leqslant \kappa'' }{\kappa \leqslant \kappa''}
+    \end{mathpar}
+    \caption{Subtyping of Capabilities, reproduced from Steed2016}
+    \label{fig:degen-subcap}
+\end{figure}
+
+The shorthand $\kappa \leqslant \{ \kappa', \kappa'' \}$ means $\kappa$ is a subcapability of both $\kappa'$ and $\kappa''$. From this relation we can build the graphical model of subcapabilities, shown in Figure \ref{fig:degen-subcap-d}. \\
+
+\begin{figure}[H]
+    \centering
+    \input{diagrams/subcap.tex}
+    \caption{Subtyping of Capabilities, reproduced from Steed2016}
+    \label{fig:degen-subcap-d}
+\end{figure}
+
+We also define how capabilities comply with capability constraints. We show the compliance relation $\ll$ in Figure \ref{fig:degen-comp}.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule{ }{\{\textit{iso, trn, ref, val, box, tag}\} \ll \textit{\#any}}
+        \and
+        \inferrule{ }{\{\textit{iso, val, tag}\} \ll \textit{\#send}}
+        \and
+        \inferrule{ }{\{\textit{iso}^-, \textit{trn}^-, \textit{ref, val, box, tag}\} \ll \textit{\#any}^-}
+        \and
+        \inferrule{ }{\{\textit{iso}^-, \textit{val, tag}\} \ll \textit{\#send}^-}
+        \and
+        \inferrule{ }{\{\textit{ref, val, box, tag}\} \ll \textit{\#alias}}
+        \and
+        \inferrule{ }{\{\textit{ref, val, box}\} \ll \textit{\#read}}
+        \and
+        \inferrule{ }{\{\textit{val, tag}\} \ll \textit{\#share}}
+        \and
+        \inferrule{ }{\kappa \ll \kappa}
+    \end{mathpar}
+    \caption{Capability Constraint Compliance}
+    \label{fig:degen-comp}
+\end{figure}
+
+The compliance relation between capabilities and capability constraints allows us to determine whether a type is a valid argument to a type parameter; the argument must witness any constraints on the the parameter, and also have a compliant capability.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule{ }{\{\textit{\#read, \#alias, \#share}, \textit{\#send}^-\} \prec \textit{\#any}^-}
+        \and
+        \inferrule{ }{\{\textit{\#read, \#alias, \#share}, \textit{\#send}\} \prec \textit{\#any}}
+        \and
+        \inferrule{ }{\textit{\#share} \prec \{ \textit{\#send}, \textit{\#send}^- \}}
+        \and
+        \inferrule{\kappa \ll v}{\kappa \prec v}
+    \end{mathpar}
+    \caption{Subcompliance}
+    \label{fig:degen-subcomp}
+\end{figure}
+
+\subsection{Aliasing and Unaliasing}
+
+The aliasing operator \texttt{+} is well-formed if $\kappa+$ is the minimum compatible capability for a new alias to an object, given that the capability of the original path is $\kappa$. Figure \ref{fig:degen-alias} gives the complete well-formed definition of aliasing.
+
+\begin{figure}[H]
+    \centering
+    \[ \kappa+ = \begin{cases}
+        \textit{iso} & \kappa = \textit{iso}^- \\
+        \textit{trn} & \kappa = \textit{trn}^- \\
+        \textit{tag} & \kappa = \textit{iso} \\
+        \textit{box} & \kappa = \textit{trn} \\
+        \kappa & otherwise
+       \end{cases}
+    \]
+    \caption{Well-formed Aliasing}
+    \label{fig:degen-alias}
+\end{figure}
+
+The capabilities \textit{ref, val, box}, and \textit{tag} permit the programmer to create infinitely many aliases, and they are all locally compatible with themselves. As a result, they all alias as themselves. Aliasing an \textit{iso} results in a \textit{tag}, because an \textit{iso} guarantees it is the only non-opaque reference to the object in the entire program. Aliasing a \textit{trn} gives an immutable reference, \textit{box}, since \textit{trn} guarantees to be the only mutable reference to the object in the entire program. Aliasing an ephemeral capability gives its stable counterpart. \\
+
+The unaliasing operator \texttt{-} is defined in Figure \ref{fig:degen-unalias}. 
+
+\begin{figure}[H]
+    \centering
+    \[ \kappa- = \begin{cases}
+        \textit{iso}^- & \kappa = \textit{iso} \\
+        \textit{trn}^- & \kappa = \textit{trn} \\
+        \kappa & otherwise
+       \end{cases}
+    \]
+    \caption{Well-formed Unaliasing}
+    \label{fig:degen-unalias}
+\end{figure}
+
+As described above, the capabilities \textit{ref, val, box}, and \textit{tag} allow the programmer to make as many aliases to an object as they want, and so removing a single reference to the object does not give us any stronger guarantees than the capability already does. Thus, unaliasing any of these capabilities results in the same capability. Unaliasing either \textit{iso} or \textit{trn} gives the ephemeral counterpart each capability, for reasons discussed in Section \ref{sec:bg-temp}
+
+\subsection{Adaptations}
+
+Unlike previous models, we choose not to explicitly define the two capability adaptations. We note that Steed2016 defined a series of requirements that each viewpoint must observe to be judged to be correct, and then aimed to find potential solutions to each. We instead choose to omit the solutions to each adaptations, instead  focusing on the requirement each present, and showing how these alone can be used make guarantees about the system. The solutions from Steed2016 are given in Appendix \ref{appendix:adaptation}. \\
+
+First, we need a number of auxiliary definitions. These are shown in Figure \ref{fig:degen-aux}. We also define local and global compatibility, in Tables \ref{tab:degen-local} and \ref{tab:degen-global} respectively.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule{\kappa \in \{\textit{iso, val, tag}\}}{Sendable(\kappa)}
+        \and
+        \inferrule{\kappa \in \{\textit{val, box}\}}{Immutable(\kappa)}
+    \end{mathpar}
+    \caption{Auxiliary Definitions}
+    \label{fig:degen-aux}
+\end{figure}
+
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll|llllll}
+\multicolumn{2}{l|}{\multirow{2}{*}{$\kappa \sim_l \kappa'$}} & \multicolumn{6}{l}{\hfill$\kappa'$\hfill}                                                             \\
+\multicolumn{2}{l|}{}                                            & \textit{iso} & \textit{trn} & \textit{ref} & \textit{val} & \textit{box} & \textit{tag} \\ \hline
+\multirow{6}{*}{$\kappa$}               & \textit{iso}              &              &              &              &              &              & \checkmark \\ \cline{2-8}
+                                     & \textit{trn}              &              &              &              &              & \checkmark & \checkmark \\ \cline{2-8}
+                                     & \textit{ref}              &              &              &  \checkmark  &              & \checkmark  & \checkmark \\ \cline{2-8}
+                                     & \textit{val}              &              &              &              & \checkmark   & \checkmark  & \checkmark \\ \cline{2-8}
+                                     & \textit{box}              &              & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\ \cline{2-8}
+                                     & \textit{tag}              & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark  
+\end{tabular}
+\caption{Local Compatibility}
+\label{tab:degen-local}
+\end{table}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll|llllll}
+\multicolumn{2}{l|}{\multirow{2}{*}{$\kappa \sim_g \kappa'$}} & \multicolumn{6}{l}{\hfill$\kappa'$\hfill}                                                             \\
+\multicolumn{2}{l|}{}                                            & \textit{iso} & \textit{trn} & \textit{ref} & \textit{val} & \textit{box} & \textit{tag} \\ \hline
+\multirow{6}{*}{$\kappa$}               & \textit{iso}              &              &              &              &              &              & \checkmark \\ \cline{2-8}
+                                     & \textit{trn}              &              &              &              &              &             & \checkmark \\ \cline{2-8}
+                                     & \textit{ref}              &              &              &              &              &             & \checkmark \\ \cline{2-8}
+                                     & \textit{val}              &              &              &              & \checkmark   & \checkmark  & \checkmark \\ \cline{2-8}
+                                     & \textit{box}              &              &              &              & \checkmark & \checkmark & \checkmark \\ \cline{2-8}
+                                     & \textit{tag}              & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark  
+\end{tabular}
+\caption{Global Compatibility}
+\label{tab:degen-global}
+\end{table}
+
+\textit{Sendable} and \textit{Immutable} are simple definitions that will be useful later. Local and global compatibility define what capabilities can coexist as aliases to the same object. Local compatibility is between two paths to an object from the same actor, and global compatibility is two paths to the same object from different actors. Each follows from the definition of the individual capabilities. \\
+
+We now have enough to define well-formedness for both viewpoint adaptation and extracting adaptation. Following the convention in Steed2016, we use $\lambda$ to represent the capability the actor has of the object, and $\kappa$ to represent the capability the object has of its field. Figure \ref{fig:degen-view} gives the well-formedness rule for viewpoint adaptation.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule{\forall \lambda', \lambda'', \lambda''', \kappa', \kappa'' \; . \; \lambda- \leqslant \lambda'' \land (\kappa \sim_l \kappa' \lor \kappa = \kappa') \implies (\\\\
+        (Immutable(\lambda) \lor Immutable(\kappa) \implies Immutable(\lambda \triangleright \kappa)) \: \land \\\\
+        (\kappa \sim_g \kappa' \implies (\lambda\triangleright\kappa)+ \sim_g \kappa') \: \land \\\\
+        ((\lambda \sim_l \lambda' \lor \lambda = \lambda' = \kappa'') \implies (\lambda\triangleright\kappa)+ \sim_l \lambda' \triangleright \kappa') \: \land \\\\
+        (\lambda \sim_g \lambda' \implies (\lambda'' \triangleright \kappa)+ \sim_g \lambda' \triangleright \kappa') \: \land \\\\
+        (Sendable(\lambda) \implies (\lambda \triangleright \kappa)+ \sim_g \lambda'' \triangleright \kappa'))}{\lambda \triangleright \kappa \; : \; \texttt{ok}}
+    \end{mathpar}
+    \caption{Well-formed Viewpoint Adaptation}
+    \label{fig:degen-view}
+\end{figure}
+
+This definition of well-formedness maintains the 5 requirements for a correct viewpoint adaptation put forward in Steed2016. \\
+
+Firstly, it ensures preservation of immutability; if either $\lambda$ or $\kappa$ are immutable, the resulting viewpoint must preserve this immutability. \\
+
+The 2nd requirement is that the operator preserves global field compatibility; if $\kappa$ is already globally compatible with $\kappa'$, creating an alias of our viewpoint of $\kappa$ must preserve that global compatibility. \\
+
+The 3rd requirement preserves local compatibility; if we have an alternative path to the same field , aliasing our viewpoint of that field must preserve local compatibility with the alternative path. \\
+
+Similar to the 2nd requirement, the 4th requirement of viewpoint adaptation is that it preserves object global compatibility; given two globally compatible references to an object, our viewpoint must be globally compatible with the path through the alternative reference. \\
+
+Finally, we want to ensure that sendable capabilities behave correctly in the presence of subtyping; if we assume an alias is created through a subtype capability and then the original is sent to another actor, the two must be globally compatible. \\
+
+Figure \ref{fig:degen-extract} gives the definition of well-formed extracting adaptation.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule{\forall \lambda', \lambda'', \kappa', \kappa'' \; . \\\\
+        (\kappa \sim_g \kappa' \implies (\lambda \extract \kappa)+ \sim_g \kappa') \; \land \\\\
+        (((\lambda \sim_l \lambda' \lor \lambda = \lambda' = \kappa'') \land \kappa \sim_l \kappa') \implies (\lambda \extract \kappa)+ \sim_l (\lambda'-) \triangleright \kappa') }{\lambda \extract \kappa \; : \; \texttt{ok}}
+    \end{mathpar}
+    \caption{Well-formed Extracting Adaptation}
+    \label{fig:degen-extract}
+\end{figure}
+
+The requirements for an extracting adaptation are much simpler. First we ensure global compatibility is preserved by saying that in the case where there are two globally compatible references to an object, a destructive read (the equivalent of aliasing the extracting adaptation) of one reference is still globally compatible with the other. \\
+
+In addition to preserving global compatibility, we seek to ensure local compatibility. Assuming we have multiple, locally compatible paths to an object, we ensure that aliasing the extracting viewpoint is locally compatible with the remaining paths.
+
+\subsection{Recovery}
+
+Recovering a capability allows us to change the capability of a reference to one with stronger local guarantees. By interacting with the capability within a code block that only allows access to sendable variables, we can make guarantees about how the reference has been used within the block. \\
+
+We can guarantee that no other aliases to a mutable capability will exist after leaving the recover block, and so we can recover any of \textit{iso, trn, or ref} to an $\textit{iso}^-$. A \textit{box} can be safely recovered to a \textit{val}, since it cannot be an alias of anything mutable by warrant of the fact that it is not compatible with \textit{iso}, and we can reference any other mutable aliases within the recover block. \textit{val} and \textit{tag} both already have the strongest guarantees possible, and so recover to themselves. \\
+
+The full definition of recovery is given in Figure \ref{fig:degen-recover}.
+
+\begin{figure}[H]
+    \centering
+    \[ recover \; \kappa = \begin{cases}
+        \textit{iso}^- & \kappa \in \{ \textit{iso}^-, \textit{iso}, \textit{trn}^-, \textit{trn}, \textit{ref} \} \\
+        \textit{val} & \kappa \in \{ \textit{val}, \textit{box} \} \\
+        \textit{tag} & \kappa = \textit{tag}
+    \end{cases}
+    \]
+    \caption{Well-formed Recovery}
+    \label{fig:degen-recover}
+\end{figure}
+
+\subsection{Safe-to-write}
+
+Having a mutable reference to an object does not guarantee to us that we can write any other reference into that object; for example, it would not be safe to write a \textit{ref} variable into a \textit{ref} field on an \textit{iso} object, because we could send the \textit{iso} to another actor, and then we would have two mutable aliases in two different actors, which violates global compatibility. We show the safe-to-write relation ($\downarrow$) in Table \ref{tab:degen-stw}, which tells us when it is safe to write a reference with capability $\kappa$ into an object with capability $\kappa'$.
+
+\begin{table}[H]
+    \centering
+    \input{diagrams/safetowrite.tex}
+    \caption{Safe-to-write}
+    \label{tab:degen-stw}
+\end{table}
+
+\subsection{Extension to Types}
+
+Each of the operations we have discussed can be extended to types by in each case unpacking the capability from the type identifier and applying the operation to the capability. Figure \ref{fig:degen-unpack} shows this.
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+        (D \; \kappa)+ &=  D \; (\kappa)+ \\
+        (D \; \kappa)- &= D \; (\kappa)- \\
+        D \; (\kappa \triangleright \tau) &= \kappa \triangleright \tau \\
+        \kappa \triangleright D \; \kappa' &= D \; (\kappa \triangleright \kappa') \\
+         D \; (\kappa \extract \tau) &= \kappa \extract \tau \\
+        \kappa \extract D \; \kappa' &= D \; (\kappa \extract \kappa') \\
+        recover \; (D \; \kappa) &= D \; (recover \; \kappa) \\
+        \kappa \downarrow (D \; \kappa') &\iff \kappa \downarrow \kappa'
+    \end{align*}
+    \caption{Extending Capability Operators to Types}
+    \label{fig:degen-unpack}
+\end{figure}
+
+\newpage
+
+\section{Well-Formedness}
+
+Here we present a number of updated and new rules for well-formedness. The introduction of capabilities renders a large number of the rules from the previous system inadequate, and requires us to augment them to achieve a system in which we will be able to prove soundness. Like previous sections, we have highlighted new additions and new rules. \\
+
+Note we deliberately omit rules where the only changes are updating method syntax and/or adding capability constraints to generic parameters. The omitted rules are those for constraint entailment, class declarations, and well-formed methods. \\
+
+Figure \ref{fig:degen-look} presents a number of new look-up rules that will be useful later. These are not the only new look-up rules that are required, but they are the only interesting ones; the remaining look-up rules can be found in Appendix \ref{appendix:degen-lookup}.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \highlight{
+        \inferrule[L-CapCon]{Constraint(Prog, C) = \texttt{constraint} \; C[\overline{\texttt{X}' \; v'}, \: \texttt{X} \; v, \: \overline{\texttt{X}'' \; v''} \; ...] \; ...}{CapCon(Prog, C, \texttt{X}) = v}}
+        \and
+        \highlight{
+        \inferrule[L-CapCon]{Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}' \; v'}, \: \texttt{X} \; v, \: \overline{\texttt{X}'' \; v''} \; ...] \; ...}{CapCon(Prog, L, \texttt{X}) = v}}
+        \and
+        \highlight{
+        \inferrule[L-CapCon]{Actor(Prog, A) = \texttt{constraint} \; A[\overline{\texttt{X}' \; v'}, \: \texttt{X} \; v, \: \overline{\texttt{X}'' \; v''} \; ...] \; ...}{CapCon(Prog, A, \texttt{X}) = v}}
+        \and
+        \highlight{
+        \inferrule[Caps]{ }{caps(\Gamma, D[\overline{\tau}] \; \kappa) = \kappa}}
+        \and
+        \highlight{
+        \inferrule[Caps]{\Gamma = \overline{\texttt{X}' \; v'}, \: \texttt{X} \; v, \: \overline{\texttt{X}'' \; v''} \\\\
+        \overline{\kappa} = \{ \kappa \; | \; \kappa \ll v\}}{caps(\Gamma, \texttt{X}) = \overline{\kappa}}}
+        \and
+        \highlight{
+        \inferrule[Caps]{caps(\Gamma, \tau) = \overline{\kappa}}{caps(\Gamma, \tau+) = \overline{\kappa+}}}
+        \and
+        \highlight{
+        \inferrule[Caps]{caps(\Gamma, \tau) = \overline{\kappa}}{caps(\Gamma, \tau-) = \overline{\kappa-}}}
+        \and
+        \highlight{
+        \inferrule[Caps]{caps(\Gamma, \tau) = \overline{\kappa}}{caps(\Gamma, recover \; \tau) = \overline{recover \; \kappa}}}
+        \and
+        \highlight{
+        \inferrule[Caps]{\overline{\kappa} = \{ \kappa \triangleright \kappa' \; | \; \kappa \in caps(\Gamma, \texttt{V}), \kappa' \in caps(\Gamma, \tau)\}}{caps(\Gamma, \texttt{V} \triangleright \tau) = \overline{\kappa}}}
+        \and
+        \highlight{
+        \inferrule[Caps]{\overline{\kappa} = \{ \kappa \extract \kappa' \; | \; \kappa \in caps(\Gamma, \texttt{V}), \kappa' \in caps(\Gamma, \tau)\}}{caps(\Gamma, \texttt{V} \extract \tau) = \overline{\kappa}}}
+        \and
+        \highlight{
+        \inferrule[Caps]{ }{caps(\Gamma, \kappa) = \kappa}}
+        \and
+        \highlight{
+        \inferrule[Caps]{ \overline{\kappa} = \{ \kappa \; | \; \kappa \ll \textit{\#any}\} }{caps(\Gamma, \texttt{this}) = \overline{\kappa}}}
+    \end{mathpar}
+    \caption{Lookup Rules}
+    \label{fig:degen-look}
+\end{figure}
+
+The first new look-up rule we have created is \texttt{L-CapCon}, which enables us to get the capability constraint of a given type variable within a declaration with generic parameters, be it a class, a constraint, or an actor. This function is useful during witnessing, as we will describe later. \\
+
+The second function, \texttt{Caps}, takes a type environment $\Gamma$ and some type $\tau$, and returns all possible capabilities that type could have. It is defined recursively over the structure of types, and applies the correct capability operations to generate the list of capabilities. For a declared type (either a class or an actor), it simply returns the associated capability that makes up part of the type. For aliased, unaliased, and recovered types, it recurses to find the capability list for the operand, and then applies the operator to the list in an element-wise fashion. For the binary viewpoint and extracting adaptations, it recurses to find lists for both operands, and then builds a complete list from every combination of arguments. \\
+
+If $\tau$ is a type variable, it potentially could have many capabilities based on its constraint. In all cases when type checking a type expression involving a type variable, we want to ensure that the expression is well-formed for all possible values the variable could take. Thus, \texttt{Caps} returns all capabilities that comply with the type variable's capability constraint.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}\highlight{
+        \inferrule[S-Unpack]{ \kappa \leqslant \kappa' \\ Prog \vdash L[\overline{\tau_1}] \leq L[\overline{\tau_2}] }{Prog \vdash L[\overline{\tau_1}] \; \kappa \leq L[\overline{\tau_2}] \; \kappa' }}
+    \end{mathpar}
+    \caption{Subtyping}
+    \label{fig:degen-subtype}
+\end{figure}
+
+Figure \ref{fig:degen-subtype} extends the subtype relation from Genus- to incorporate capabilities in the same way we did when extending capability operators to work on types. We unpack the capabilities from each type and check the subcapability relation holds, and then we check subtyping on the declared type as in Genus-. Note the two operators are different, with $\leqslant$ denoting subcapability and $\leq$ denoting subtyping.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+    \inferrule[W-Class]{Funcs(Prog, \Delta, C[\overline{\tau}]) \highlight{\cup Behavs(Prog, \Delta, C[\overline{\tau}])} \\ \subseteq \bigcup_i Funcs(Prog, \Delta, \tau_i) \highlight{\cup \bigcup_i Behavs(Prog, \Delta, \tau_i)} \\\\
+    \highlight{Constraint(Prog, C) = \texttt{constraint} \; C[\overline{\texttt{X} \; v} \; ...] \; ...} \\\\
+    \highlight{\forall i \; . \; \tau_i \ll CapCon(Prog, C, \texttt{X}_i)}}{Prog; \Delta \vdash \overline{\tau} :: C[\overline{\tau}]}
+    \end{mathpar}
+    \caption{Witnessing}
+    \label{fig:degen-wit}
+\end{figure}
+
+Figure \ref{fig:degen-wit} shows the new witness relation in DeGen. For a sequence of types to correctly witness a constraint, the capability of each type must comply with the capability constraint of its respective type variable. Additionally, actors can now be part of the sequence of types witnessing constraints, and so we check that union of the functions and behaviours defined on the constraint is a subset of the union of all functions and behaviours defined on the sequence of types.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[W-Prog]{\forall C \in Constraints(Prog) \: . \: Prog \vdash C : \texttt{ok} \\\\
+        \forall L \in Classes(Prog) \: . \: Prog \vdash L : \texttt{ok} \\\\
+        \highlight{\forall A \in Actors(Prog) \: . \: Prog \vdash A : \texttt{ok}}}{\vdash Prog : \texttt{ok}}
+    \end{mathpar}
+    \caption{Well-formed Programs}
+    \label{fig:degen-wfp}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[W-CDecl]{ \overline{\texttt{X}_2} \subseteq \overline{\texttt{X}_1} \\ \overline{\texttt{X}_3} \subseteq \overline{\texttt{X}_1} \\\\
+        \forall i \: . \: Prog; \overline{\texttt{X}_1}; \emptyset \vdash C_2[\overline{\texttt{X}_2}]_i : \texttt{ok} \\ Prog; \overline{\texttt{X}_1}; \emptyset \vdash C_3[\overline{\texttt{X}_3}] : \texttt{ok} \\\\
+        \forall i \: . \: Prog; \: \overline{\texttt{X}_1}; \overline{C_2[\texttt{X}_2]}, C_3[\texttt{X}_3] \vdash (\tau_1 \: \tau_2.m[\beta](\overline{\tau_3}))_i : \texttt{ok} \\ \forall i . \exists j \: . \: (\tau_2)_i = (\texttt{X}_1)_j \land (\texttt{X}_1)_j \notin \overline{\texttt{X}_2} \\\\
+        \highlight{\forall i \: . \: Prog; \: \overline{\texttt{X}_1}; \overline{C_2[\texttt{X}_2]}, C_3[\texttt{X}_3] \vdash (\tau_4.b[\beta'](\overline{\tau_5}))_i : \texttt{ok}} \\ \highlight{\forall i . \exists j \: . \: (\tau_4)_i = (\texttt{X}_1)_j \land (\texttt{X}_1)_j \notin \overline{\texttt{X}_2}}}{Prog \vdash \; \texttt{constraint} \: C_1[\overline{\texttt{X}_1} \: \texttt{where} \: \overline{C_2[\overline{\texttt{X}_2}}]] \: \texttt{extends} \: C_3[\overline{\texttt{X}_3}] \; \{ \overline{\tau_1 \: \tau_2.m[\beta](\overline{\tau_3})} \; \highlight{\overline{\tau_4.b[\beta'](\overline{\tau_5})}} \} : \texttt{ok} }
+    \end{mathpar}
+    \caption{Well-Formed Constraint Declarations}
+    \label{fig:degen-wfc}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}\highlight{
+        \inferrule[W-ADecl]{\forall i \: . \: Prog; \overline{\texttt{X}}; \emptyset \vdash C[\overline{\tau_1}]_i : \texttt{ok} \\ Prog; \overline{\texttt{X}}; \overline{C[\overline{\tau}]} \vdash \tau_2 : \texttt{ok} \\\\ 
+        \forall i \: . \: Prog; \overline{\texttt{X}}; \overline{C[\overline{\tau_1}]} \vdash (\tau_4.m[\beta_1](\overline{\tau_5}) : \tau_3 \: \{\texttt{e}_1\})_i : \texttt{ok} \\ \forall i \: . \: Prog; \overline{\texttt{X}}; \overline{C[\overline{\tau_1}]} \vdash (\tau_4)_i : A[\overline{\texttt{X}}] \; \textit{ref} \\\\
+        \forall i \: . \: Prog; \overline{\texttt{X}}; \overline{C[\overline{\tau_1}]} \vdash (\tau_6.m[\beta_2](\overline{\tau_7})\: \{\texttt{e}_2\})_i : \texttt{ok} \\ \forall i \: . \: Prog; \overline{\texttt{X}}; \overline{C[\overline{\tau_1}]} \vdash (\tau_6)_i : A[\overline{\texttt{X}}] \; \textit{ref}}{Prog \vdash \: \texttt{actor} \: A[\overline{\texttt{X} \; v} \: \texttt{where} \: \overline{C[\overline{\tau_1}}]] \: \{\overline{f \: \tau_2} \; \overline{\tau_4.m[\beta_1](\overline{\tau_5}) \: : \: \tau_3 \: \{\texttt{e}_1\}} \; \overline{\tau_6.b[\beta_2](\overline{\tau_7}) \; \{\texttt{e}_2\} }\} : \texttt{ok} }}
+    \end{mathpar}
+    \caption{Well-Formed Actor Declarations}
+    \label{fig:degen-wfa}
+\end{figure}
+
+Figure \ref{fig:degen-wfp} gives the additional requirement that all actor declarations to be correct for programs to be well-formed. Figure \ref{fig:degen-wfc} shows the additional requirements on constraints relating to behaviours. These are very similar to the requirements on methods; the behaviour declaration is well-formed, the receiver is a type variable in the constraint's scope, and the receiver is not itself constrained. \\
+
+Figure \ref{fig:degen-wfa}  shows the requirements for a well-formed actor declaration. Actors have generic parameters, a list of fields, a list of methods, and a list of behaviours, and the usual checks to these apply. The generic parameters must be well-formed, as must all the constraints that act upon them. The methods must be well-formed and their receivers must have the same type as the class, with the same requirement on behaviours.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+    \highlight{
+    \inferrule[W-BehavSig]{
+        Prog; \Gamma; \Delta \vdash \tau_1 : \texttt{ok} \\\\
+        \forall i \; . \; Prog; \Gamma, \overline{\texttt{X} \; v}; \Delta, \overline{C[\overline{\tau}]} \vdash (\tau_2)_i : \texttt{ok}  \\\\ \forall i \; . \; Prog; \Gamma, \overline{\texttt{X} \; v}; \Delta \vdash (C[\overline{\tau}])_i : \texttt{ok}}{Prog; \Gamma; \Delta \vdash \tau_1.b[\overline{\texttt{X} \; v} \; \texttt{where} \; \overline{C[\overline{\tau}]}](\overline{\tau_2})}}
+    
+    
+    \highlight{
+    \inferrule[W-BehavDecl]{
+        Prog; \Gamma; \Delta \vdash \tau_1.b[\overline{\texttt{X} \; v} \; \texttt{where} \; \overline{C[\overline{\tau}]}](\overline{\tau_2}) : \texttt{ok} \\\\
+        Prog; \Gamma, \overline{\texttt{X} \; v}; \Delta, \overline{C[\overline{\tau}]}; this : \tau_1, \overline{x : \tau_2} : \texttt{e} : \tau_e}{Prog; \Gamma; \Delta \vdash \tau_1.b[\overline{\texttt{X} \; v} \; \texttt{where} \; \overline{C[\overline{\tau}]}](\overline{\tau_2 \; x}) \{\texttt{e}\} : \texttt{ok}}}
+    \end{mathpar}
+    \caption{Well-Formed Behaviours}
+    \label{fig:degen-wfb}
+\end{figure}
+
+Figure \ref{fig:degen-wfb} gives the requirements for well-formed behaviours. They are much the same as methods, with the exception of requiring a specific return type; behaviours are asynchronous and no value is returned, so while we need to know the behaviour body has a type, it is not required to be any specific one. As expected, we require that the receiver, parameters, and constraints are all also well-formed. We include two separate rules for signature and declaration, as we only need to check the signature when a behaviour is required by a constraint.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[W-TL]{Class(Prog, L) = \texttt{class} \: L[\overline{\texttt{X} \; \highlight{v}} \: \texttt{where} \: \overline{C[\overline{\tau_2}}]] \: \texttt{extends} \:  L_2[\overline{\tau_3}] \{...\} \\\\
+        \forall i \: . \: Prog; \Gamma; \Delta \vdash (\tau_1)_i : \texttt{ok} \\ \#(\overline{\tau_1}) = \#(\overline{\texttt{X}}) \\\\
+        Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash L_2[\overline{\tau_3}\{\overline{\tau_1}/\overline{\texttt{X}}\}] : \texttt{ok} \\ \forall i \; . \; Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash C[\overline{\tau_2}\{\overline{\tau_1}/\overline{\texttt{X}}\}]_i : \texttt{ok} \\\\
+        \forall i \; . \; Prog; \Gamma; \Delta \vdash (\overline{\tau_2} \{\overline{\tau_1}/\overline{\texttt{X}}\})_i :: C[\overline{\tau_2} \{\overline{\tau_1}/\overline{\texttt{X}}\}]_i \\\\
+        \highlight{\forall i \; . \; \forall j \; . \; caps((\tau_1)_i)_j \ll v_i}}{Prog; \Gamma; \Delta \vdash L[\overline{\tau_1}] : \texttt{ok}}
+        \and
+        \inferrule[W-TC]{Constraint(Prog, C) = \texttt{constraint} \: C[\overline{\texttt{X}\; \highlight{v}} \: \texttt{where} \: \overline{C_2[\overline{\texttt{Y}}}]] \: \texttt{extends} \:  C_3[\overline{\texttt{Z}}] \{...\} \\\\
+        \forall i \: . \: Prog; \Gamma; \Delta \vdash \tau_i : \texttt{ok} \\ \#(\overline{\tau}) = \#(\overline{\texttt{X}}) \\\\
+        \forall i \; . \; Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash C_2[\overline{\texttt{Y}}\{\overline{\tau}/\overline{\texttt{X}}\}]_i : \texttt{ok}  \\ Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash C_3[\overline{\texttt{Z}}\{\overline{\tau}/\overline{\texttt{X}}\}] : \texttt{ok} \\\\
+        \forall i \; . \; Prog; \Gamma; \Delta \vdash (\overline{\texttt{Y}} \{\overline{\tau}/\overline{\texttt{X}}\})_i :: C_2[\overline{\texttt{Y}} \{\overline{\tau}/\overline{\texttt{X}}\}]_i \\\\
+        \highlight{\forall i \; . \; \forall j \; . \; caps(\tau_i)_j \ll v_i}}{Prog; \Gamma; \Delta \vdash C[\overline{\tau}] : \texttt{ok}}
+        \and
+        \highlight{
+        \inferrule[W-TA]{Actor(Prog, A) = \texttt{actor} \: A[\overline{\texttt{X} \; v} \: \texttt{where} \: \overline{C[\overline{\tau_2}}]] \; ... \\\\
+        \forall i \: . \: Prog; \Gamma; \Delta \vdash (\tau_1)_i : \texttt{ok} \\ \#(\overline{\tau_1}) = \#(\overline{\texttt{X}}) \\\\
+        \forall i \; . \; Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash C[\overline{\tau_2}\{\overline{\tau_1}/\overline{\texttt{X}}\}]_i : \texttt{ok} \\\\
+        \forall i \; . \; Prog; \Gamma; \Delta \vdash (\overline{\tau_2} \{\overline{\tau_1}/\overline{\texttt{X}}\})_i :: C[\overline{\tau_2} \{\overline{\tau_1}/\overline{\texttt{X}}\}]_i \\\\
+        \forall i \; . \; \forall j \; . \; caps((\tau_1)_i)_j \ll v_i}{Prog; \Gamma; \Delta \vdash A[\overline{\tau_1}] : \texttt{ok}}}
+        \and
+        \highlight{
+        \inferrule[W-TAlias]{Prog; \Gamma; \Delta \vdash \tau : \texttt{ok}}{Prog; \Gamma; \Delta \vdash \tau+ : \texttt{ok}}}
+        \and
+        \highlight{
+        \inferrule[W-TUnalias]{Prog; \Gamma; \Delta \vdash \tau : \texttt{ok}}{Prog; \Gamma; \Delta \vdash \tau- : \texttt{ok}}}
+        \and
+        \highlight{
+        \inferrule[W-TRecover]{Prog; \Gamma; \Delta \vdash \tau : \texttt{ok}}{Prog; \Gamma; \Delta \vdash recover \: \tau : \texttt{ok}}}
+        \and
+        \highlight{
+        \inferrule[W-TView]{Prog; \Gamma; \Delta \vdash \tau : \texttt{ok} \\\\
+        \forall \kappa \in caps(\Gamma, \texttt{V}), \kappa' \in caps(\Gamma, \tau) \; . \; \kappa \triangleright \kappa' : \texttt{ok} }{Prog; \Gamma; \Delta \vdash \texttt{V} \triangleright \tau : \texttt{ok}}}
+        \and
+        \highlight{
+        \inferrule[W-TExt]{Prog; \Gamma; \Delta \vdash \tau : \texttt{ok} \\\\
+        \forall \kappa \in caps(\texttt{V}), \kappa' \in caps(\tau) \; . \; \kappa \extract \kappa' : \texttt{ok} }{Prog; \Gamma; \Delta \vdash \texttt{V} \extract \tau : \texttt{ok}}}
+    \end{mathpar}
+    \caption{Well-Formed Types and Constraints}
+    \label{fig:degen-wft}
+\end{figure}
+
+In Figure \ref{fig:degen-wft} we give an expanded set of rules for judging types and constraints in use-cases. Firstly, we present updated rules for classes and constraints with type arguments. In addition to witnessing the constraints on the type parameters they replace, the arguments must comply with the capability constraints of each type parameter. We then give the rules for actor types, which are nearly identical to that of classes, again checking that all type arguments are valid, the constraints remains well-formed and are witnessed correctly, and each argument complies with its respective capability constraints. \\
+
+We then give a number of rules that check type expressions are well-formed. For the unary operators \texttt{+}, \texttt{-} and \textit{recover}, this simply requires checking the operand is well-formed, as each operation is defined on all capabilities. For the two adaptations, we find all possible combinations of capabilities from both operands using the \texttt{Cap} function we defined in Figure \ref{fig:degen-look}, and then check every combination is well-formed using the rules described in Figures \ref{fig:degen-view} and \ref{fig:degen-extract}.
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \highlight{
+        \inferrule[alias]{Prog; \Gamma; \Delta; E \vdash \texttt{e} : \tau}{Prog; \Gamma; \Delta; E \vdash_a \texttt{e} : \tau+}}
+        \and
+        \inferrule[fld]{Prog; \Gamma; \Delta; E \vdash e : \highlight{D[\overline{\tau}] \; \kappa} \\\\
+        Field(Prog, D[\overline{\tau}], f) = \tau}{Prog; \Gamma; \Delta; E \vdash e.f : \highlight{\kappa \triangleright \tau}}
+        \and
+        \inferrule[fld-ass]{Prog; \Gamma; \Delta; E \vdash e_1 : \highlight{D[\overline{\tau}] \; \kappa} \\ Prog; \Gamma; \Delta; E \highlight{\vdash_a} e_2 : \tau \\\\
+        Field(Prog, D[\overline{\tau}], f) = \tau \\ \highlight{\kappa \downarrow \tau}}{Prog; \Gamma; \Delta; E \vdash e_1.f = e_2 : \highlight{\kappa \extract \tau}}
+        \and
+        \inferrule[new-L]{Prog; \Gamma \vdash L[\overline{\tau_1}] \; \highlight{\kappa} : \texttt{ok} \\\\
+        \forall i \: . \: Prog; \Gamma; \Delta; E \vdash \texttt{e}_i : \tau_i \\ \forall i \; . \; Field(Prog, L[\overline{\tau_1}], f_i) = \tau_i \\\\
+        \highlight{\forall i \; . \; \kappa \downarrow \tau_i} \\
+        \overline{f} = Fields(Prog, L)}{Prog; \Gamma; \Delta; E \vdash \texttt{new} \: L[\overline{\tau_1}](\overline{f = \texttt{e}}) \; \highlight{\kappa} : L[\overline{\tau_1}] \; \highlight{\kappa}}
+        \and
+        \highlight{
+        \inferrule[new-A]{Prog; \Gamma \vdash A[\overline{\tau}] \; \textit{tag} : \texttt{ok} }{Prog; \Gamma; \Delta; E \vdash \texttt{new} \: A[\overline{\tau}] \; \kappa : A[\overline{\tau}] \; \textit{tag}}}
+        \and
+        \inferrule[m-call]{Prog; \Gamma; \Delta; E \highlight{\vdash_a} \texttt{e}_1 : \tau_1  \\ \forall i \: . \: Prog; \Gamma \vdash (\tau_2)_i : \texttt{ok} \\\\
+        Func(Prog, \Delta, \tau_1, m) = \tau_1.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau_5}]}](\overline{\tau_4}) : \tau_3 \\\\
+        \forall i \; . \; Prog; \Gamma; \Delta; E \highlight{\vdash_a} (\texttt{e}_4)_i : (\tau_4\{\overline{\tau_2}/\overline{\texttt{X}}\})_i \\\\
+        \forall i \; . \; Prog; \Gamma; \Delta \vdash (\overline{\tau_5} \{\overline{\tau_2}/\overline{\texttt{X}}\})_i :: C[\overline{\tau_5} \{\overline{\tau_2}/\overline{\texttt{X}}\}]_i}{Prog; \Gamma; \Delta; E \vdash \texttt{e}_1.m[\overline{\tau_2}](\overline{\texttt{e}_4}) : \tau_3}
+        \and
+        \highlight{
+        \inferrule[b-call]{Prog; \Gamma; \Delta; E \vdash_a \texttt{e} : A[\overline{\tau_2}] \; \textit{tag} \\ \forall i \: . \: Prog; \Gamma \vdash (\tau_1)_i : \texttt{ok} \\\\
+        Behav(Prog, \Delta, A[\overline{\tau_2}], b) = A[\overline{\tau}].b[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau_3}]}](\overline{\tau_4}) \\\\
+        \forall i \; . \; Prog; \Gamma; \Delta; E \vdash_a \texttt{e}_i : (\tau_4\{\overline{\tau_2}/\overline{\texttt{X}}\})_i \\\\
+        \forall i \; . \; Prog; \Gamma; \Delta \vdash (\overline{\tau_3} \{\overline{\tau_2}/\overline{\texttt{X}}\})_i :: C[\overline{\tau_3} \{\overline{\tau_2}/\overline{\texttt{X}}\}]_i}{Prog; \Gamma; \Delta; E \vdash \texttt{e}.b[\overline{\tau_2}](\overline{\texttt{e}}) : A[\overline{\tau_2}] \; \textit{tag}}}
+        \and
+        \highlight{
+        \inferrule[recover]{Prog; \Gamma; \Delta; E\backslash\{x \; | \; \neg Sendable(E(x))\} \vdash \texttt{e} : \tau}{Prog; \Gamma; \Delta; E \vdash \texttt{recover e} : recover \; \tau}}
+        \and
+        \highlight{
+        \inferrule[null]{D \in \texttt{P} \\ Prog; \Gamma; \Delta; E \vdash D[\overline{\tau}] : \texttt{ok}}{Prog; \Gamma; \Delta; E \vdash \texttt{null} : D[\overline{\tau}] \; \textit{iso}^-}}
+    \end{mathpar}
+    \caption{Well-Formed Expressions}
+    \label{fig:degen-wfe}
+\end{figure}
+
+Finally, Figure \ref{fig:degen-expr} gives all the rules for typing expressions in DeGen. \\
+
+We introduced a new judgement to aid us - the alias judgement, denoted $\vdash_a$. The alias judgement allows us to determine what type an expression will alias as by typing the expression, then applying the alias operator to the resulting type. \\
+
+The type of a field access is now the type of the field, as viewed through the capability of the target expression. Thus we determine the type of the target expression and use its capability as the viewpoint for a viewpoint adaptation on the field type. \\
+
+Field assignment now uses the extracting adaptation to determine the type of the assignee, using the target expression's capability as the viewpoint. Note that we use the alias judgement to determine the type of the assignee, and ensure that it is safe to write the type into the target capability. \\
+
+Creating a new object now takes a capability as part of the expression. In addition to previous checks, we also check the type and its intended capability are jointly well-formed, and then check it is safe to write the type of each field expression into the object. The determined type, assuming these requirements hold, is the declared type with the expected capability. \\
+
+Creating a new actor works differently to creating a new object. Since all actors view other actors as \textit{tag}s, the type of the expression must have capability \textit{tag}. Since \textit{tag} references are opaque, we cannot write to the new actor's fields, and therefore do not allow instantiating them as part of this expression. Assuming the actor type with capability \textit{tag} is well-formed, the \texttt{new} expression is also well-formed. \\
+
+Typing a method call expression works very similarly to before. When calling a method, the receiver and arguments are all passed into the new frame used to evaluate the expression, which requires them to be aliased, and so we determine their types using the aliasing judgement.  \\
+
+Typing a behaviour is similar to typing a method call. The receiving expression must have tag capability, and as with a method call the receiver and arguments are aliased in the message sent to the receiving actor, and so we use the aliasing judgement to determine their types. \\
+
+A recover expression ensures that the inner expression can be typed using only sendable variables from the value context. If this requirement holds, the recover expression has the same type as recovering the type of the inner expression. \\
+
+A null expression can be given any valid type, with a capability of $\textit{iso}^-$. This is because \texttt{null} represents any reference that is not pointing to an object on the heap, and so can take the type of any object that could possibly exist in the heap. The capability of $\textit{iso}^-$ aliases as \textit{iso}, 
+
+\newpage
+
+\section{Well-Formed Heaps}
+
+Now that we have introduced capabilities and actors, we can expand our ideas of well-formed heaps to more than just preservation of soundness. We can additionally make judgments about whether the execution of expressions preserves well-formed visibility, which allows us to check data-race freedom statically.
+
+\subsection{Soundness} \label{sec:degen-sound}
+
+Show how the previous proof of soundness is preserved in this system. \\
+
+Introducing actors into DeGen altered the method of executing expressions, and so the previous operational semantics from Genus- are no longer valid. Each actor executes individually and sequentially, but sharing the same heap. Actors contain a message queue which the process sequentially, reading the message at the top of the queue and executing the behaviour body entirely before processing the next one. The only way for actors to interact is by sending messages (i.e. dispatching behaviours) to one another. Messages contain the name of the behaviour to execute, a sequence of values for arguments, and a runtime environment. \\
+
+Capabilities are erased at runtime, and so don't impact the runtime specification or operational semantics. The runtime environment $\Omega$ still maps type variables to concrete types, and does not contain any information about capabilities. Runtime environments combine similarly to in Genus-; executing a behaviour uses the runtime environment of the message that caused the behaviour to be executed and the runtime environment of the actor. Executing methods declared in an actor works the same as previously, and methods dispatched to an object use the object's runtime environment in addition to that of the method and actor. \\
+
+The runtime specification, though not discussed in this report, will largely resemble that of $\textit{Pony}^{PL}$. Each rule from Genus- will be adapted to actor execution, and a number of new rules will be introduced for the new expressions. Additionally, a rule is required for actors reading behaviours from their message queue, and also a global rule that when an actor executes an expression, that actor can change and all others stay the same. \\
+
+Since we envision a runtime specification similar to previous deny capability models, built on top of a sound generics system, we expect that DeGen is also sound. However, we do not give a proof of this in this report. \\
+
+Our theorem of soundness for DeGen is the same as that for Genus-, given in Figure \ref{fig:genus-soundness}, and we would prove soundness in a similar way. Capabilities are erased at runtime, and so don't impact the execution of expressions. However, DeGen introduces actors, so the method of executing expression has been altered. \\
+
+
+\subsection{Well-Formed Visibility}
+
+The visibility of a path is the capability resulting from the series of field accesses and writes that form that path, and can be obtained by repeatedly applying the viewpoint and extracting adaptations. Given this notion of path visibilities, well-formed visibility states that all path visibilities are compatible in the sense that no data races can occur. \\
+
+Well-formed visibility has been formally stated and proven for both the original Pony model and $\textit{Pony}^{GS}$, but we just give an informal, intuitive reasoning here. Given that well-formed visibility deals only with capabilities, and our system uses the same formalisation of capabilities as $\textit{Pony}^{GS}$, it follows that well-formed visibility holds for DeGen, but we do not explicitly prove this. Note, in the section below we are using the adaptation solutions from $\textit{Pony}^{GS}$, given in Appendix \ref{appendix:adaptation}.
+
+\subsubsection{Visibility}
+
+We have already seen that a field access of the form \texttt{x.f} has capability $E(\texttt{x}) \triangleright \tau_f$, where $\tau_f$ is the field type as declared in the class. This is a slight simplification; the capability should actually be $\texttt{this} \triangleright E(\texttt{x}) \triangleright \tau_f$. However, all actors see themselves as \textit{ref}, which does not change a capability when used as a viewpoint. A path \texttt{x.f1.f2} therefore has capability $(E(\texttt{x}) \triangleright \tau_{f1}) \triangleright \tau_{f2}$. This heap corresponds to the diagram in Figure \ref{fig:vis-1}. 
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[t]{0.3\textwidth}
+    \centering
+        \input{diagrams/visbility/vis-1.tex}
+        \caption{Chained Field Accesses}
+        \label{fig:vis-1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.3\textwidth}
+        \centering
+        \input{diagrams/visbility/vis-2.tex}
+        \caption{Heap with Explicit Capabilities}
+        \label{fig:vis-2}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.3\textwidth}
+        \centering
+        \input{diagrams/visbility/vis-3.tex}
+        \caption{Heap with Implicit Capabilities}
+        \label{fig:vis-3}
+    \end{subfigure}
+\end{figure}
+
+If the variables and field have the capabilities shown in \ref{fig:vis-2}, the resulting capability of the path \texttt{x.f1.f2} would be $\textit{ref} \triangleright \textit{iso} \triangleright \textit{box}$, giving us a \textit{tag}. However the path \texttt{(x.f1 = y).f2} would have the capability $\textit{ref} \extract \textit{iso} \triangleright \textit{box}$, which is the same as \textit{val}.  \\
+
+Due to the existence of type variables in DeGen, we may not have the capability explicitly available when trying to determine the visibility of a path. For the heap in Figure \ref{fig:vis-3}, where the types of all references are symbolic, we can determine that the path \texttt{x.f1.f2} would have a visibility of $\chi(\alpha)\downarrow_2(\texttt{X}) \triangleright \chi(\iota_1)\downarrow_2(\texttt{Y}) \triangleright \chi(\iota_2)\downarrow_2(\texttt{Z})$. Note that the runtime environments do not actually contain capability information, and we reference them here as something of a shorthand. When determining the visibility of type variable paths, effort must be taken to determine the resulting capability statically. \\
+
+Given the heap and capabilities in \ref{fig:vis-4}, the path \texttt{x.f1.f} has capability \textit{iso}, as does the path \texttt{x.f2.f}. These path visibilities are compatible, since \textit{ref} allows multiple local mutable references, and there is only one \textit{iso} to $\iota_1$. In fact, this heap has well-formed visibility, so any pair of paths is compatible. Note also that the path \texttt{(x = y).f1.f2} has capability $\texttt{this} \extract \textit{iso} \triangleright \textit{ref} \triangleright \textit{ref}$, giving us a visibility of $\textit{iso}^-$, due to the fact that \texttt{this} always has capability \textit{ref} in an actor. 
+
+\begin{figure}[H]
+    \centering
+    \input{diagrams/visbility/vis-4.tex}
+    \caption{Caption}
+    \label{fig:vis-4}
+\end{figure}
+
+Well-formed visibility is a judgment on the heap, and so we require that all possible pairs of paths are compatible, with each permutation of field access, write, aliasing and unaliasing being valid and well-formed.  
+
+\subsubsection{Proving Well-Formed Visibility}
+
+We would prove that well-formed visibility is preserved much like we would prove soundness, through structural induction over operational semantics; given a heap satisfying well-formed visibility, performing a single execution of a well-typed expression results in a new heap satisfying well-formed visibility, and the type of the expression. By proving it in this manner, we know that the execution of any valid DeGen program has well-formed visibility at all stages of execution, and by extension all well-formed programs are data-race free.

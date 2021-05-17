@@ -1,1 +1,15 @@
 \chapter{Conclusion}
+
+This project has shown that deny capabilities and constraint-based generics can be combined into a succinct formal specification that is likely sound and data-race free. This system alleviates the programmer burden caused by f-bounded polymorphism and empowers them to use generics in a simple, intuitive way.  \\
+
+Over the course of the project, we have focused our efforts on ensuring the systems we are building are well designed. We have justified each design decision, and they have resulted in two concise, simple models. Being guided by this principled design approach allowed us to iterate quickly on design ideas, and, in nearly all cases, know quickly when we were pursuing ineffective avenues of design. \\
+
+\section{Future Work}
+
+DeGen is currently a very simple system, and so there are many possible avenues of future work, many of which we discussed in the previous chapter. We mention just some of these here:
+
+\begin{itemize}
+    \item Expand DeGen into a full formal model, including runtime specification and operational semantics, and show that it preserves both soundness and well-formed visibility. Once these properties have been proven, we will have established DeGen as a valid proof of concept for constraint bounded generics in an actor-based language.
+    \item Both Pony and Genus support features that DeGen does not. A key aspect to developing DeGen further would be to reintroduce some of these features in order to add greater expressiveness and power to the system. For example, adding Genus models as named constructs to DeGen would allow us to fully utilise the expressive power of using constraints and models in conjunction.
+    \item A DeGen compiler would allow DeGen to form the basis for future programming language implementations, whether it be a new major version of Pony supporting constraint generics, or a spiritual successor to Pony.
+\end{itemize}

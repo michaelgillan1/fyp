@@ -1,0 +1,35 @@
+\chapter{DeGen Look-Up Rules} \label{appendix:degen-lookup}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[L-Actors]{Prog = \overline{\texttt{CO}} \; \overline{\texttt{CL}} \; \overline{\texttt{A}}}{Actors(Prog) = \overline{\texttt{A}}}
+        \and
+        \inferrule[L-Actor]{Actors(Prog)_i = \texttt{actor} \; A \; ...}{Actor(Prog, A) = Actors(Prog)_i}
+        \and
+        \inferrule[L-F-A]{Actor(Prog, A) = \texttt{actor} \; A[\overline{\texttt{X}}\; ...] \; ... \{... \; \tau \: f \; ... \}}{Field(Prog, A[\overline{\tau}], f) = \tau\{\overline{\tau}/\overline{\texttt{X}}\}}
+        \and
+        \inferrule[L-Fs-A]{Actor(Prog, A) = \texttt{actor} \; A \; ... \; \{\overline{\tau \: f} \; ...\}}{Fields(Prog, A) = \overline{f}}
+        \and
+        \inferrule[L-Funcs-Actor]{Actor(Prog, A) = \texttt{actor} \; A[...] \{... \; \overline{\texttt{methSig} \; \{\texttt{e}\}} \; ...\} }{Funcs(Prog, A) = \overline{\texttt{methSig}}, \overline{m}}
+        \and
+        \inferrule[L-M-Body]{Actor(Prog, A) = \texttt{actor} \; A[...] \; ... \; \{... \; \tau' \; \tau''.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau'''}]}](\overline{\tau'''' \; x})\{ \texttt{e} \} \; ... \}}{Meth(Prog, A, m) = \tau' \; \tau''.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau'''}]}](\overline{\tau'''' \; x})\{ \texttt{e} \}}
+        \and
+        \inferrule[L-Behavs-Con]{Constraint(Prog, C) = \texttt{constraint} \; C[\overline{\texttt{X}} \; ...] \; \texttt{extends} \; C'[...] \; \{... \; \overline{\texttt{behavSig}}\} \\\\
+        Behavs(Prog, \Delta, C') = \overline{b}}{Behavs(Prog, \Delta, C) = \overline{\texttt{behavSig}}\{\overline{\tau}/\overline{\texttt{X}}\}, \overline{b}\{\overline{\tau}/\overline{\texttt{X}}\}}
+        \and
+        \inferrule[L-Behavs-Class]{ }{Behavs(Prog, \Delta, L[\overline{\tau}] = \emptyset}
+        \and
+        \inferrule[L-Behavs-Actor]{Actor(Prog, A) = \texttt{actor} \; A[\overline{\texttt{X}} \; ...] \{... \; \overline{\texttt{behaveSig} \{\texttt{e}\}} \}}{Behavs(Prog, \Delta, A[\overline{\tau}]) = \overline{\texttt{behaveSig}}\{\overline{\tau}/\overline{\texttt{X}}\}}
+        \and
+        \inferrule[L-Behavs-Var]{\overline{C} = \{ C \; | \; C[\overline{\texttt{X}'}, \texttt{X}, \overline{\texttt{X''}}] \in \Delta \} \\\\
+        \overline{\texttt{bSig}} = \{ \texttt{bSig} \; | \; \exists C \in \overline{C}, \overline{\tau} \; . \; \texttt{bSig} \in Behavs(Prog, \Delta, C) \land \texttt{bSig} = \texttt{X}.m(\overline{\tau}) \}}{Behavs(Prog, \Delta, \texttt{X}) = \overline{\texttt{bSig}}}
+        \and
+        \inferrule[L-Behav]{Behavs(Prog, \Delta, \tau) = \overline{b} \\\\
+        b_i = \tau_1.b[\beta](\overline{\tau_2})}{Behav(Prog, \Delta, \tau, b) = b_i }
+        \and
+        \inferrule[L-B-Body]{Actor(Prog, A) = \texttt{actor} \; A[...] \; ... \; \{... \; \tau'.b[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau''}]}](\overline{\tau''' \; x})\{ \texttt{e} \} \; ... \}}{BehavBody(Prog, A, b) = \tau'.b[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau''}]}](\overline{\tau''' \; x})\{ \texttt{e} \}}
+    \end{mathpar}
+    \caption{DeGen Look-Up Rules}
+    \label{fig:degen-lookup-a}
+\end{figure}

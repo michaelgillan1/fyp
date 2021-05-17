@@ -1,4 +1,4 @@
-\documentclass[a4paper, twoside, table]{report}
+\documentclass[a4paper, twoside, table, 10pt]{report}
 
 %% Language and font encodings
 \usepackage[english]{babel}
@@ -17,6 +17,8 @@
 %% Useful packages
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{enumitem}
 \usepackage{mathpartir}
 \usepackage{csquotes}
 \usepackage{cite}
@@ -25,30 +27,93 @@
 \usepackage[colorinlistoftodos]{todonotes}
 \usepackage[colorlinks=true, allcolors=blue]{hyperref}
 \usepackage{float}
+\floatstyle{boxed} 
+\restylefloat{figure}
 \usepackage{mathtools}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{multirow}
+\usepackage{wasysym}
+
+\usepackage{xcolor}
+
+
+\definecolor{codegreen}{rgb}{0,0.3,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{1,1,1}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codegreen},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    escapeinside={(*@}{@*)}
+}
+ 
+\lstset{style=mystyle}
+
+\newcommand{\highlight}[1]{%
+  \colorbox{gray!40}{$\displaystyle#1$}}
+  
+\newcommand{\highcode}[1]{%
+  \highlight{\texttt{#1}}}
 
 \newcommand{\extract}{\mathrlap{-}\triangleright}
+\newtheorem{lemma}{Lemma}
+
+\newcommand{\rulesep}{\unskip\ \vrule\ }
 
 
 \titleformat{\chapter}[block]
   {\normalfont\huge\bfseries}{\thechapter.}{1em}{\Huge}
 \titlespacing*{\chapter}{0pt}{-19pt}{10pt}
 
-\title{Generics in Pony}
+\title{Type Constraints and Deny Capabilities}
 \author{Michael Gillan}
 % Update supervisor and other title stuff in title/title.tex
 
 \begin{document}
 \input{title/title.tex}
 
-%\begin{abstract}
+\begin{abstract}
 %Your abstract goes here
-%\end{abstract}
 
-%\renewcommand{\abstractname}{Acknowledgements}
-%\begin{abstract}
+Generics are a vital and powerful part of nearly all modern programming languages, which allow code reuse across various types. However, with great power comes great responsibility; generics, and how they interact with the rest of a language, are highly complex, and in some cases require immense programmer effort to understand and apply. \\
 
-%\end{abstract}
+Generic variables are usually bounded using subtyping; the range of types a variable is permitted to be is defined by the subtype of its bound. When types are referred to in their bounds, known as f-bounded polymorphism, the situation gets more complicated still. \\
+
+An alternative to subtype bounding has been proposed in Genus, a type system developed on top of Java that uses type predicates known as constraints to bound type variables. Genus is highly expressive and powerful, but lacks a proof of soundness. \\
+
+We present Genus-, a distilled, imperative formal model of generics that uses the same generic mechanisms as Genus. We discuss the well-formedness of the system, and show that it is sound. \\
+
+We also describe DeGen, a type system we designed to incorporate the deny capabilities and actor-based execution from Pony into Genus-. We define its well-formedness, and discuss proving preservation of soundness and data-race freedom.
+
+\end{abstract}
+
+\renewcommand{\abstractname}{Acknowledgements}
+\begin{abstract}
+
+I would like to thank my supervisor, Sophia Drossopoulou, for her incredible patience and guidance over the course of this project. Her feedback and support has been vital for getting this project off the ground. \\
+
+I'd also like to thank my family, for not getting mad when I didn't return their calls, and my flatmates for putting up with the replica North Atlantic garbage patch slowly migrating out of my room. \\
+
+And finally, a shout-out to Michel Jouvet, without whose works on analeptics, this project would not and could not possibly exist. RIP to a real one.
+
+\end{abstract}
 
 \tableofcontents
 %\listoffigures
@@ -56,14 +121,20 @@
 
 \input{introduction/introduction.tex}
 \input{background/background.tex}
-\input{interim/projectplan.tex}
-\input{interim/evaluationplan.tex}
-%\input{project/project.tex}
-%\input{evaluation/evaluation.tex}
-%\input{conclusion/conclusion.tex}
-%\input{appendix/appendix.tex}
+%\input{interim/updatedplan.tex}
+%\input{interim/evaluationplan.tex}
+\input{project/project.tex}
+\input{project/degen.tex}
+\input{evaluation/evaluation.tex}
+\input{conclusion/conclusion.tex}
 
 \bibliographystyle{unsrt}
 \bibliography{bibs/ProjectBackground}
+
+\input{appendix/appendixA.tex}
+\input{appendix/appendixB.tex}
+\input{appendix/appendixC.tex}
+\input{appendix/appendixD.tex}
+
 
 \end{document}

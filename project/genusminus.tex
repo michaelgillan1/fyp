@@ -1,0 +1,1115 @@
+\chapter{Genus-} \label{chpt:genus-}
+
+Here we present Genus-, a minimal formal model that represents the ideas presented by Genus\cite{Zhang2015}, as discussed in Section \ref{sec:genus-bg}. Our major restriction is that we drop the concepts of models and interfaces entirely. While having models as named constructs adds a large amount of expressiveness to the system, we were able to simplify the system greatly by removing them. This change is explained and justified in Section \ref{model-just}. We discuss the core ideas of Genus- in Section \ref{G-Concepts}, and discuss its differences with Genus. The full formal model of Genus- is provided in Appendix \ref{appendix:genusminus}
+
+\section{Introduction} \label{G-Concepts}
+
+\subsection{Constraints} \label{sec:genus-constraints}
+
+Genus- constraints exist as predicates on classes; they ensure that the type arguments to parametric classes and methods fulfill requirements imposed upon the type variables. A constraint provides a list of method signatures. Any class intended to witness that constraint must implement compatible methods. \\
+
+Figure \ref{fig:eq-constraint} shows a simple equality constraint \texttt{Eq}, which has a single method \texttt{equals(T other)}. Constraining a type variable using the \texttt{Eq[T]} constraint ensures that any argument for \texttt{T} can be tested for equality. Figure \ref{fig:eq-method} shows a parametric method that makes use of this.\footnote{This example, and others throughout this section, makes use of syntax that is not formally defined in Genus-. This syntax is intended to take its standard definition in other OOL such as Java.} \\
+
+Multivariate constraints allow a predicate to be established on the relationship between two classes. The multivariate constraint \texttt{Graphlike[E, V]} in Figure \ref{fig:graph-constraint} must be witnessed by two classes, where the method signatures define the required relationship between the arguments. The argument for \texttt{E} should have two methods \texttt{source()} and \texttt{sink()} that return an object of the type provided as an argument for \texttt{V}. Which variable should implement which methods is indicated through the method receiver; \texttt{E} as the receiver for \texttt{source()} indicates it is the argument for \texttt{E} that must implement the method. In Figure \ref{fig:eq-constraint}, there is only one type variable, so the receiver can be safely omitted.\footnote{In the formalisation in Appendix \ref{appendix:genusminus}, we don't allow the receiver to be omitted.} Classes that witness the constraints in Figures \ref{fig:eq-constraint} and \ref{fig:graph-constraint} are detailed in Section \ref{sec:genus-classes}. \\
+
+\begin{figure}[h]
+    \centering
+    \begin{verbatim}
+    
+    constraint Eq[T] {
+        bool equals(T other);
+    }   
+    \end{verbatim}
+    \caption{Equality Constraint}
+    \label{fig:eq-constraint}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \begin{verbatim}
+    
+    bool notEquals[T where Eq[T]](T a, T b) {
+        return !a.equals(b);
+    }
+    \end{verbatim}
+    \caption{Parametric Method Using \texttt{Eq[T]}}
+    \label{fig:eq-method}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \begin{verbatim}
+    
+    constraint Graphlike[V, E] {
+        Iterable[E] V.outgoingEdges();
+        Iterble[E] V.incomingEdges();
+        V E.source();
+        V E.sink();
+    }
+    \end{verbatim}
+    \caption{Multivariate Graphlike Constraint}
+    \label{fig:graph-constraint}
+\end{figure}
+
+Constraints can \texttt{extend} other constraints to create constraint entailment, where the satisfaction of one constraint is a prerequisite for the satisfaction of another. The constraint \texttt{Comparable[T]} in Figure \ref{fig:comparable-constraint} entails \texttt{Eq[T]}, meaning any class intended to witness \texttt{Comparable[T]} must also provide the \texttt{equals(T other)} method required by \texttt{Eq[T]}. \\
+
+\begin{figure}[h]
+    \centering
+    \begin{verbatim}
+    
+    constraint Comparable[T] extends Eq[T] {
+        int compareTo(T other);
+    }
+    \end{verbatim}
+    \caption{Comparable Constraint Entails Equality}
+    \label{fig:comparable-constraint}
+\end{figure}
+
+Genus- simplifies Genus by removing interfaces as named constructs. To maintain expressiveness, we have had to augment the behaviour of constraints to act as interfaces. This is a natural extension, as interfaces act as constraints on classes already; a \texttt{Set} interface defines the methods that a class requires to be treated as a \texttt{Set}, and a class that implements \texttt{Set} must implement these methods. However, to accurately provide the behaviour of interfaces, we must allow that the type variables in constraints can themselves be constrained; a constraint that defines the behaviour of sets would be useless if you could not ensure that they type argument witnesses equality! This differs from the original Genus model. Figure \ref{fig:interface-constraint} shows a comparison between a Java \texttt{Set} interface, and a Genus- \texttt{Set} constraint. Since constraints are predicates on types, a constraint that models a parametric interface must be multivariate, establishing a relationship between a class representing the set, and the type parameter to the set. We do not allow constrained type variables to be used as receivers, restricting them to only act as return or parameter types. \\
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+        
+    interface Set<T 
+        extends Comparable<T>> {
+      ...
+      void remove(T item);
+      ...
+    }
+        \end{verbatim}
+        \caption{Basic Java set interface}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+        
+constraint Set[S, T where Eq[T]] {
+  ...
+  void S.remove(T item);
+  ...
+}
+        \end{verbatim}
+        \caption{Equivalent constraint to the set interface}
+    \end{subfigure}
+    \caption{Set Interface vs Constraint}
+    \label{fig:interface-constraint}
+\end{figure}
+
+We show in Section \ref{sec:translation} that any interface can be translated into a Genus- constraint, ensuring that no expressivity is lost by the removal of interfaces as named constructs. \\
+
+\subsection{Classes} \label{sec:genus-classes}
+
+Genus- classes serve largely the same purpose as classes in other languages in that they are an extensible template for creating objects. Our interest in classes in Genus- comes from their interaction with constraints. In the original Genus system, 'models' exist as named constructs that define behaviours for classes intended to witness constraints. Genus- removes 'models', and instead only permits classes to witness constraints structurally. \\
+
+In order to witness a constraint, a class must provide implementations for the constraint's method signatures such that they are correct when the class is the argument for the type variable. This is demonstrated in Figure \ref{fig:eq-class}, where \texttt{IntPair} structurally witnesses the \texttt{Eq[T]} constraint we defined in Figure \ref{fig:eq-constraint}. Supplying \texttt{IntPair} as the type argument to \texttt{Eq[T]} makes the required method signature \texttt{bool equals(IntPair other)}, which is correctly implemented in the class. Thus \texttt{IntPair} could be correctly used as the argument for a type parameter constrained by \texttt{Eq}, such as the \texttt{notEquals} method in Figure \ref{fig:eq-method}. \\
+
+\begin{figure}[h]
+    \centering
+    \begin{verbatim}
+    
+    class IntPair {
+        int fst;
+        int snd;
+        bool equals(IntPair other) {
+            return this.fst == other.fst && this.snd == other.snd;
+        }
+    }
+    \end{verbatim}
+    \caption{\texttt{IntPair} Class Witnessing \texttt{Eq[T]}}
+    \label{fig:eq-class}
+\end{figure}
+
+To witness multivariate constraints, multiple classes are required. As described in the previous section, the constraint defines what methods must exist on which class. To demonstrate this, Figure \ref{fig:graph-class} shows the \texttt{Graphlike[V, E]} constraint with two classes \texttt{Vertex} and \texttt{Edge} used as type arguments. We can see that the constraint creates a predicate on the relationship between \texttt{Vertex} and \texttt{Edge}, and show the class implementations that would fulfil this predicate. \\
+
+\begin{figure}[h]
+    \centering
+    \begin{verbatim}
+    
+    constraint GraphLike[Vertex, Edge] {
+      Iterable[Edge] Vertex.outgoingEdges();
+      Iterable[Edge] Vertex.incomingEdges();
+      Vertex Edge.source();
+      Vertex Edge.sink();
+    }
+    \end{verbatim}
+    \begin{subfigure}[t]{0.45\textwidth}
+        \begin{verbatim}
+        class Vertex {
+          List[Edge] _out;
+          List[Edge] _in;
+          List[Edge] outgoingEdges() {
+            return _out;
+          }
+          List[Edge] incomingEdges() {
+            return _in;
+          }
+        }
+        \end{verbatim}
+        \caption{\texttt{Vertex} class}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.45\textwidth}
+        \begin{verbatim}
+        class Edge {
+          Vertex _source;
+          Vertex _sink;
+          Vertex source() {
+            return _source;
+          }
+          Vertex sink() {
+            return _sink;
+          }
+        }
+        \end{verbatim}
+        \caption{\texttt{Edge} class}
+    \end{subfigure}
+    \caption{Witnessing Multivariate Constraints}
+    \label{fig:graph-class}
+\end{figure}
+
+We have seen that constraints can be entailed, and witnessing classes must fulfill all constraints that are entailed by the target constraint. In order to witness the \texttt{Comparable} constraint from Figure \ref{fig:comparable-constraint}, a class must also provide the methods to witness the \texttt{Eq} constraint that \texttt{Comparable} extends. Figure \ref{fig:comparable-class} shows how our \texttt{IntPair} class can be modified to witness \texttt{Comparable}. \\
+
+\begin{figure}[h]
+    \centering
+    \begin{verbatim}
+    
+    class IntPair {
+        int fst;
+        int snd;
+        bool equals(IntPair other) {
+            return this.compareTo(other) == 0;
+        } 
+        int compare(IntPair other) {
+            return (this.fst + this.snd) - (other.fst + other.snd);
+        }
+    }
+    \end{verbatim}
+    \caption{Witnessing Entailed Constraints}
+    \label{fig:comparable-class}
+\end{figure}
+
+Classes themselves can \texttt{extend} other classes, but this behaviour is orthogonal to that of extending constraints; extending a constraint simply allows the programmer to reduce code duplication where one constraint logically relies on another, whereas extending a class allows the programmer to specialise the behaviour of a class. This is similar to the difference between extending interfaces and extending classes. A class has access to all the fields and methods of its superclass, and can choose to override existing methods in order to create specialised behaviour. We have omitted the \texttt{extends} clause from previous examples for brevity, but require it in our formal specification; we rely on a trivial class \texttt{Object} that is a superclass of all classes. Thus the declaration of \texttt{IntPair} should actually read \texttt{`class IntPair extends Object`}. We will continue to omit this in future examples. \\
+
+In order to allow for the missing behaviour that would be provided by interfaces, we have allowed constraints to use constrained type variables. In Figure \ref{fig:interface-class}, we show two different approaches to witnessing a constraint like this; one for a concrete class, and one for a parametric class. In Figure \ref{fig:interface-class-var}, \texttt{VarBox} does not instantiate the type variable T, leaving all occurrences of it from the constraint as they were. This is a valid way of witnessing the constraint; repeating the constraint on \texttt{T} in the scope of the class is sufficient to ensure the expected methods will be available at runtime. In Figure \ref{fig:interface-class-con}, the variable \texttt{T} has been implicitly instantiated as \texttt{String}. Since \texttt{String} witnesses \texttt{Eq[T]}, this is also a valid method of witnessing the constraint. This is similar to Java, where the class must explicitly instantiate the type variable in the manner of `\texttt{StringBox implements Box<String>}`. Also note that both classes provide implementations for the \texttt{equals} method required by constraint entailment. \\
+
+\begin{figure}
+    \centering
+    \begin{verbatim}
+    
+    constraint Box[B, T where Eq[T]] extends Eq[B] {
+        T B.get();
+        void B.set(T obj);
+    }
+    \end{verbatim}
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+    class VarBox[T where Eq[T]] {
+        T item;
+        T get() {
+            return this.item;
+        }
+        void set(T obj) {
+            this.item = obj;
+        }
+        bool equals(VarBox[T] other) {
+            return this.item
+                .equals(other.item);
+        }
+    }
+        \end{verbatim}
+        \caption{Parametric Class Witnessing Constraint}
+        \label{fig:interface-class-var}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+class StringBox {
+    String item;
+    String get() {
+        return this.item;
+    }
+    void set(String obj) {
+        this.item = obj;
+    }
+    bool equals(StringBox other) {
+        return this.item
+            .equals(other.item);
+    }
+}
+        \end{verbatim}
+        \caption{Concrete Class Witnessing Constraint}
+        \label{fig:interface-class-con}
+    \end{subfigure}
+    \caption{Two Methods Of Witnessing Interface-Style constraints}
+    \label{fig:interface-class}
+\end{figure}
+
+\subsection{Methods}
+
+Methods are declared in constraints, and implemented in classes. A method in a constraint has a return type, a receiver (which has to be one of the type variables in the constraint), a sequence of parameter types, and a (possibly empty) set of generic parameters. In a class, a method consists of the above and an expression for the method body. \\
+
+The generic parameters supplied to a method are in scope during the execution of the method body and must be initialised at the method call site. An example of a generic method and valid calling code is given in Figure \ref{fig:generic-method}. This is a bit of a redundant example (the same effect could achieved by dispatching \texttt{equals} to \texttt{pair.fst}), but serves as an example of how type variables can be used in generic methods. \\
+
+\begin{figure}[h]
+    \centering
+    \begin{verbatim}
+    
+    class PairChecker {
+        bool checkPair[X where Eq[X]](Pair[X] pair) {
+            X fst = pair.fst();
+            X snd = pair.snd()
+            return fst.equals(snd);
+        }
+    }
+    \end{verbatim}
+    
+    \begin{verbatim}
+    ...
+    p = new PairChecker();
+    pair = new Pair[String](fst="123", snd="abc");
+    p.checkPair[String](pair); // returns false
+    \end{verbatim}
+    \caption{Generic Method and Calling Code}
+    \label{fig:generic-method}
+\end{figure}
+
+Classes can override methods from a super class by redeclaring them in the class body. The return type and parameter types of the overriding method must be the same as in the super class. 
+
+\subsection{Types} \label{sec:genus-types}
+
+Types in Genus- may be either type variables or classes; if the class has generic parameters, then it must be supplied with type arguments for each of its parameters.
+
+\subsubsection{Existential and Universal Types}
+
+Genus as presented by Zhang et al. extended Java's wildcard syntax, itself a limited form of existential quantification, to more explicit and expressive existential typing. The Java type \texttt{List<? extends Printable>} is equivalent to the type-theoretic quantified type $\exists\texttt{U}\leq\texttt{Printable.List[U]}$, which (assuming \texttt{Printable} is a constraint) can be written in Genus as
+\texttt{[\textbf{some} U \textbf{where} \\ Printable[U]]List[U]}. \\
+
+Existential types in the Genus syntax have the form $\Dot{\tau} ::= [\beta]\tau$, where a type is prefixed with some generic parameters, which introduce type variables that are in scope in the quantified type. This explicit syntax for introducing existentially quantified variables is very expressive, but also adds a great deal of complexity to the system; subtyping is extended to coersion, which introduces extra computation such as existential packing. It is due to this that in Genus- we remove existential types completely. \\
+
+We justify this by noting that all existentially quantified types can be encoded as universally quantified types. Consider the known equivalence $(\exists X.P(X)) \implies Q \equiv \forall X . (P(X) \implies Q)$. A method \texttt{m} with signature \texttt{A m[X where C[X]](v:X)} has type $m: \forall X.(C(X) \implies A)$, and a method \texttt{n} with signature \texttt{A n(some X where C[X].v:X)} has type $n: (\exists X.C(X)) \implies A$. These two types are equivalent, and so an existential type for a parameter can be replaced by a universal type for the function. Similar arguments can be made for other scenarios, and knowing that existential types can be encoded as universal types is enough justification for their removal.
+
+
+\subsubsection{Variance}
+
+Variance in Java (and by extension Genus) occurs at use-site, meaning that variance is defined when the type parameter is used. We define that in Genus-, as in Java, type variables in generic classes (and constraints) are invariant. However, Java introduces covariance and contravariance by using bounded wildcards, allowing a wildcard to be bounded from above or below to give covariance and contravariance respectively. As discussed in the previous section, we have opted to remove existential types, which wildcards are a limited form of. As a result of this decision, there is mechanism that introduces variance into Genus-, and thus we do not need to consider it.
+
+\subsection{Null}
+
+A null reference is a concept in most modern programming languages, used to indicate that the reference does not refer to a valid object in the heap. Attempting to dereference a null pointer in most programming languages will lead to a null pointer exception, and the termination of execution. However, in Genus-, we do not have \texttt{null} as an expression. Since we require that all fields on objects be instantiated with valid values at creation, we have no need for it. As a result of this, Genus- will not be able to represent cyclic types; instantiating a cyclic object will be impossible.
+
+\newpage
+
+\section{A Mathematical Approach to Witnessing} \label{sec:mat-wit}
+
+In the previous section we presented a number of example constraints, with classes that witness those constraints. In this section, we present a concise  formulation of the relationship between classes and constraints in order to justify our choices for the design of parametric constraints. Additionally, this formulation provides a basis for justifying the removal of models as named constructs.
+
+\subsection{Notation}
+
+In section \ref{sec:genus-constraints} we describe constraints as predicates on classes. We can formalise this notion by imagining the set of all classes $\mathbb{L}$. We can say that all constraints are a subset of $\mathbb{L}$ where all elements of the constraint obey a certain feature. To simplify this, we use the function \textit{Pred} defined in Figure \ref{fig:pred}. \\
+
+\begin{figure}[h]
+    \centering
+\begin{equation*}
+    C : Pred_1(\mathbb{L}) \equiv C \in \wp(\mathbb{L})
+\end{equation*}
+\begin{equation*}
+    C : Pred_2(\mathbb{L} \times \mathbb{L}) \equiv C \in \wp(\mathbb{L} \times \mathbb{L})
+\end{equation*}
+\begin{align*}
+    \textit{etc.}
+\end{align*}
+    \caption{Pred Function}
+    \label{fig:pred}
+\end{figure}
+
+
+\subsection{Predicates}
+
+\subsubsection{Alternative 1}
+
+We define the constraints we have introduced as functions on $\mathbb{L}$ in Figure \ref{fig:pred-constraints}. We can see that constraint entailment is equivalent to a subset relation between two predicates. In this method of defining predicates, parametric constraints are predicates on every type variable, where constraints on type variables manifest as necessary and sufficient conditions for a class to be in the predicate. These definitions correspond to the syntax for constraints we have seen thus far. \\
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+        \texttt{Eq} &: Pred_1(\mathbb{L}) \\
+        \texttt{Graphlike} &: Pred_2(\mathbb{L} \times \mathbb{L}) \\
+        \texttt{Comparable} &: Pred_1(\mathbb{L}) \land \texttt{Comparable} \subseteq \texttt{Eq} \\
+        \texttt{Set} &: Pred_2(\mathbb{L} \times \mathbb{L}) \; \texttt{where} \; \forall \: C' \; . \; (C \notin \texttt{Eq} \iff \texttt{Set}(C, C') = \emptyset) \\
+        \texttt{Box} &: Pred_2(\mathbb{L} \times \mathbb{L}) \; \texttt{where} \; \forall \: C' \; . \; (C \notin \texttt{Eq} \iff \texttt{Set}(C, C') = \emptyset) \land \texttt{Box} \subseteq \texttt{Eq}
+    \end{align*}
+    \caption{Constraints as Predicates}
+    \label{fig:pred-constraints}
+\end{figure}
+
+\subsubsection{Alternative 2}
+
+Our other option for modelling constraints as predicates is given in Figure \ref{fig:pred-param}. The parameterised constraint \texttt{Set} is a function that take a class and gives a set of classes; this set of classes is non-empty if the argument class is in \texttt{Eq}. Parameterised constraints require a different syntax to the one discussed in Section \ref{sec:genus-constraints}, an example of which is given in Figure \ref{fig:pred-param-alt}. \texttt{T} acts as the parameter to the function in Figure \ref{fig:pred-param}, and the constraint acts as a predicate on \texttt{S}, which represents the set itself. Since \texttt{T} is not part of the predicate, we can omit the receiver from any functions, as it is implicitly \texttt{S}.
+
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+    \texttt{Eq} &: Pred(\mathbb{L}) \\
+    \texttt{Graphlike} &: Pred(\mathbb{L} \times \mathbb{L}) \\
+    \texttt{Comparable} &: Pred(\mathbb{L}) \land \texttt{Comparable} \subseteq \texttt{Eq} \\
+    \texttt{Set} &: \mathbb{L} \to Pred(\mathbb{L}) \; \texttt{where} \; \forall \: C' \; . \; (C \notin \texttt{Eq} \iff \texttt{Set}(C) = \emptyset) \\
+    \texttt{Box} &: \mathbb{L} \to Pred(\mathbb{L}) \; \texttt{where} \; \forall \: C' \; . \; (C \notin \texttt{Eq} \iff \texttt{Box}(C) = \emptyset) \land \texttt{Box}(C) \subseteq \texttt{Eq}
+    \end{align*}
+    \caption{Parameterised Predicates}
+    \label{fig:pred-param}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \begin{verbatim}
+    
+    constraint Set<T where Eq[T]>[S] {
+        ...
+        void remove(T item);
+        ...
+    }
+    \end{verbatim}
+    \caption{Alternate Syntax For Parametric Constraints}
+    \label{fig:pred-param-alt}
+\end{figure}
+
+Both syntaxes are capable of representing all possible constraints, and so either can be used. We have chosen the syntax in \ref{fig:G-Syntax} to stay closer to the original Genus, but acknowledge it requires somewhat more complex well-formedness rules to ensure type variables are used appropriately. \\
+
+\subsection{Classes}
+
+There are two forms of classes; classes such as \texttt{Vertex}, \texttt{Edge}, and \texttt{IntPair} that are simply members of $\mathbb{L}$, and parametric classes such as \texttt{VarBox} that are partial functions that have arguments and return types that are members of $\mathbb{L}$. The definition of \texttt{VarBox} as a function is given in Figure \ref{fig:varbox-func}. Parametric classes such as \texttt{VarBox} already exist in Genus, and we have used the same square bracket notation to denote the type variables. \\
+
+\begin{figure}[H]
+    \centering
+    \begin{equation*}
+        \texttt{VarBox} : \mathbb{L} \rightharpoonup \mathbb{L} \; \texttt{where} \; (C \notin \texttt{Eq} \iff \texttt{VarBox}(C) = \bot)
+    \end{equation*}
+    \caption{\texttt{VarBox} As A Function On Classes}
+    \label{fig:varbox-func}
+\end{figure}
+
+Classes that witness predicates are in the set defined by the predicate, thus \texttt{IntPair} $\in$ \texttt{Eq} and (\texttt{Vertex}, \texttt{Edge}) $\in$ \texttt{GraphLike}. We can form this as a judgement, as shown in Figure \ref{fig:pred-judgement}. The program structure provides the knowledge of whether a class is in the subset of a constraint, for the most part. The final judgment shows that if the necessary constraints are active on a type variable, then we know enough about that type variable to decide whether it fulfils the predicate provided by constraints. \\
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+        Prog &\vdash \texttt{Eq}[\texttt{IntPair}] \\
+        Prog &\vdash \texttt{GraphLike}[\texttt{Vertex}, \texttt{Edge}] \\
+        Prog &\vdash \texttt{Box}[\texttt{VarBox}[\texttt{String}], \texttt{String}] \\
+        Prog &\vdash \texttt{Box}[\texttt{StringBox}, \texttt{String}] \\
+        Prog, \; \texttt{Eq}[L] &\vdash \texttt{Box}[\texttt{VarBox}[L], L] \\
+    \end{align*}
+    \caption{Witness Relations As Judgements}
+    \label{fig:pred-judgement}
+\end{figure}
+
+\newpage
+
+\section{Translating Interfaces} \label{sec:translation}
+
+Genus- simplifies Genus by removing models and interfaces as named constructs. Section \ref{appendix:intertrans} first gives an expanded syntax that adds interfaces to Genus- in Figure \ref{fig:interface-syntax}. Figure \ref{fig:interface-translation} then provides a translation from Genus- + interfaces to Genus-. The fact that we can describe this translation shows that Genus- without interfaces is at least as expressive as Genus- with interfaces. \\
+
+Translation of interface declarations is relatively straightforward; interfaces can be modelled as constraints where we introduce a type variable to represent the interface itself. Figure \ref{fig:genus-set} shows how we would do this translation for a \texttt{Set} interface. We first show a simple implementation of a \texttt{Set} interface in Java. The Genus- translation of this interface is shown on the right. Translation introduces a type variable \texttt{S} to represent the \texttt{Set}. The Genus- constraint  creates a relationship between the two classes \texttt{S} and \texttt{T}, where equality can be established on objects of type \texttt{T}. We ensure that the methods required of a \texttt{Set} are present on \texttt{S}. A parametric class such as \texttt{HashSet[T where Eq[T]]} would be able to witness this constraint along with an appropriate \texttt{T}
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+        
+    interface Set<T where Eq[T]> {
+      ...
+      void remove(T item);
+      ...
+    }
+        \end{verbatim}
+        \caption{A \texttt{Set} interface in Java}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+        
+constraint Set[S, T where Eq[T]] {
+  ...
+  void S.remove(T item);
+  ...
+}
+        \end{verbatim}
+        \caption{Translated interface}
+    \label{fig:genus-set2}
+    \end{subfigure}
+    \caption{How interfaces can be translated to Genus- constraints.}
+    \label{fig:genus-set}
+\end{figure}
+
+Further complexity comes from where interfaces can be used as types; method return types and method parameters. Both of these problems can be solved with universal quantification. \\
+
+Figure \ref{fig:interface-parameters} shows how we can translate parameters that are interfaces into universally quantified type variables that are in scope on the method. The method \texttt{addAll(...)} on the \texttt{Set} interface can take anything that fulfills the contract of \texttt{Set} as a parameter. This isn't necessarily the same as the implementing class, i.e. a \texttt{HashSet<T>} class could take  \texttt{TreeSet<T>} as a parameter to \texttt{addAll(...)}. To translate the parameter, we introduce a new type variable \texttt{U} which, together with the already defined variable \texttt{T}, witnesses the \texttt{Set} constraint. \texttt{U} is then used in place of the interface in the parameter list. Implementations of \texttt{Set} don't necessarily have to instantiate \texttt{U}, but any calling code would have to provide a class that obeys the constraint. \\
+
+Figure \ref{fig:interface-return} demonstrates translation of return types by introducing type variables at the constraint level. Here, we introduce universally quantified type variables in the scope of the constraint. To translate the return type \texttt{List<T>}, we introduce a new type variable \texttt{L}, in the same manner as for methods. \texttt{L} represents a list, and we introduce a constraint on \texttt{L} and \texttt{T} that represents this relationship. \texttt{L} then replaces \texttt{List<T>} as the method return type. \\
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+        
+    interface Set<T> {
+      ...
+      void remove(T item);
+      ...
+      void addAll(Set<T> set);
+      ...
+    }
+        \end{verbatim}
+        \caption{Interface as a Parameter Type}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+        
+constraint Set[S, T where Eq[T]] {
+  ...
+  void S.remove(T item);
+  ...
+  void S.addAll[U 
+    where Set[U, T]](U set);
+  ...
+}
+        \end{verbatim}
+        \caption{Translated parameters}
+    \end{subfigure}
+    \caption{Translation of interface parameters.}
+    \label{fig:interface-parameters}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+        
+    interface Set<T> {
+      ...
+      void remove(T item);
+      ...
+      List<T> toList();
+      ...
+    }
+        \end{verbatim}
+        \caption{Interface as a Return Type}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.45\textwidth}
+        \centering
+        \begin{verbatim}
+        
+constraint Set[S, T, L 
+    where Eq[T], List[L, T]] {
+  ...
+  void S.remove(T item);
+  ...
+  L S.toList();
+  ...
+}
+        \end{verbatim}
+        \caption{Translated Return Type}
+    \label{fig:genus-set2}
+    \end{subfigure}
+    \caption{How Genus- constraints can be used in place of interfaces.}
+    \label{fig:interface-return}
+\end{figure}
+
+The translation rules in Section \ref{fig:interface-translation} detail the syntactic translation that occurs, and encapsulate the approach discussed above. To translate a program consisting of a sequence of class, constraint, and interface declarations, we apply the rule \texttt{T-Prog} to translate each declaration. \\
+
+Interfaces are first converted to constraints in the manner described in Figure \ref{fig:genus-set}; a new type variable is introduced to convert the interface to a predicate, and this type variable is set as the receiver for each method. The interface identifier is prepended with the characters `c\_`. \\
+
+Both constraints and classes then go through two further levels of translation; the rules \texttt{T-Constraint} and \texttt{T-Class} translate any interface return types in their method signatures by introducing type variables and constraints. Each method is then translated using the \texttt{T-Meth} rule to translate any interface parameters. \\
+
+Interface translation uses the \textit{expand} function defined in Figure \ref{fig:interface-expand}. \textit{expand} takes an interface type \textit{I} and recurses through its type arguments to further convert any other interface types. It returns a sequence of type variables, the head of which is the type variable that represents \textit{I}. For example, $expand(Set \langle List \langle \texttt{X} \rangle \rangle, \emptyset) = (\texttt{U}_1 : \texttt{U}_2, c\_Set[\texttt{U}_1, \texttt{U}_2] : c\_List[\texttt{U}_2, \texttt{X}])$. This allows the translation to convert a single interface type to the full set of type variables and constraints required to represent it in one go.
+
+\newpage
+
+\section{Simplifying Models} \label{model-just}
+
+In the original Genus paper, models exist as named constructs. The major benefit of this, instead of just relying on a type's natural model, is that models allow the programmer to make a type to satisfy a constraint when the natural model doesn't exist, or has undesired behaviour.  By extension of this facility, models also give Genus code reuse through model inheritance, the ability to use expanders to invoke functionality directly, and the ability to specialise the behaviour of models through the creation of parameterized models. \\
+
+\begin{figure}[H]
+    \centering
+    \begin{verbatim}
+    
+    model CIEq for Eq[String] {
+      bool equals(String str) {
+        return equalsIgnoreCase(str);
+      }
+    }
+    
+    Set[String] s0 = ...;
+    Set[String with CIEq] s1 = ...;
+    s1 = s0; // illegal assignment: different types.
+    \end{verbatim}
+    \caption{}
+    \label{fig:model-multiwitness}
+\end{figure}
+
+Figure \ref{fig:model-multiwitness} shows an example of creating a model in Genus to enable a use of different behaviour for a type with an existing natural model. \texttt{String} already has a structural model of equality, but \texttt{CIEq} provides a specialised model of equality that ignores the case of the string. We can see from the calling code that when \texttt{String} is used as a type argument, we can specify which model of equality we want to use. The chosen model is part of the type, so two types that are equivalent in all but model are strictly different. \\
+
+We can emulate this ability using wrapper classes. Figure \ref{fig:class-multiwitness} demonstrates this idea. The class \texttt{CIString} is a wrapper around a \texttt{String} with \texttt{eq} method that reflects the desired behaviour of case-insensitive equality. It delegates all other method calls to its inner \texttt{String} field, as the \texttt{append} method demonstrates.
+
+\begin{figure}[H]
+    \centering
+    \begin{verbatim}
+    
+    class CIString {
+        String str;
+        ...
+        bool equals(CIString other) {
+            return str.equalsIgnoreCase(other);
+        }
+        ...
+        CIString append(CIString other) {
+            str.append(other.str);
+            return this;
+        }
+        ...
+    }
+    \end{verbatim}
+    \caption{Wrapper Function for Specialising Behaviour}
+    \label{fig:class-multiwitness}
+\end{figure}
+
+Since \texttt{CIString} correctly witnesses \texttt{Eq[T]}, it can be used as an argument to \texttt{Set} and will have the intended behaviour, including case-insensitive equality. It can not be used in a place where \texttt{String} is explicitly needed, as it is obviously a different type, and would therefore cause the same assignment error as in Figure \ref{fig:model-multiwitness}. \\
+
+We can extrapolate this idea into a strategy for recreating the expressiveness provided by models; when we wish to specialise a type's behaviour relative to a given constraint, we create a wrapper class around that type, implementing the specialised behaviour in the methods required by the constraint, and delegating all others to the inner type. The concept of model inheritance doesn't have an equivalent in this strategy, and so we lose the benefit of code reuse through inheritance. This does not impact the expressiveness of our solution, simply the brevity, as all behaviour an inherited model would provide can be replicated. \\
+
+Despite this strategy, we do not attempt to replace the functionality of expanders; to do so would require us to increase syntactic and type complexity, for relatively little gain in our generic expressiveness. Genus models allow types to be "different, but analogous", where the model used by a type does not affect the underlying structure of the type. This enables method calls such as \texttt{"x".(CIEq.equals)("X")}, as the types \texttt{String} and \texttt{String with CIEq} are generally interchangeable. In the example in Figure \ref{fig:model-multiwitness}, \texttt{String} and \texttt{CIString} are completely distinct types, and so expanders would not work here. We do not view this as much of a deficiency; expanders in Genus are important as they all the programmer to invoke methods promised by named where-clause constraints. Genus- does not have named constraints, and so has little need for expanders. The ability to specialise behaviour at a given point in the program can be recreated, albeit with less succinct code, by instantiating a wrapper type. For example, \texttt{"x".(CIEq.equals)("X")} in Genus has behaviour equivalent to \texttt{(new CIString("x").)equals(new CIString("X"))} in Genus-. \\
+
+\begin{figure}[H]
+    \centering
+    \begin{verbatim}
+    
+    model DualGraph[V,E] for GraphLike[V,E] where GraphLike[V,E] g {
+      V E.source() { return this.(g.sink)(); }
+      V E.sink() { return this.(g.source)(); }
+      Iterable[E] V.incomingEdges() {
+        return this.(g.outgoingEdges)(); }
+      Iterable[E] V.outgoingEdges() {
+        return this.(g.incomingEdges)(); }
+    }
+    \end{verbatim}
+    \caption{Dual Graph Parametric Model}
+    \label{fig:model-parametric}
+\end{figure}
+
+The parametric model in Figure \ref{fig:model-parametric} specialises the behaviour of another model that witnesses the same constraint as itself. Given a model for \texttt{GraphLike[V,E]}, this model will use the behaviour the constraint guarantees to return the transpose of any graph \texttt{g} by reversing the edge orientations. While we cannot return the dual as simply and succinctly as this, the calculation of a dual graph is a simple algorithm that requires iterating over the graph and building the dual. Genus's approach gives us the benefit of reduced complexity and space required, as it only requires one graph to be stored in memory. While this is a significant weakness on the part of Genus-, it is a weakness of complexity rather than a weakness of expressiveness.
+
+\newpage 
+
+\section{Well-Formedness}
+
+Section \ref{appendix:genus-wf} presents a large number of rules that judge the well-formedness of a program. These rules judge if a sequence of the syntactic elements from Figure \ref{fig:G-Syntax} form a valid Genus- program.
+
+\subsection{Environments} \label{sec:genus-env}
+
+Figure \ref{fig:G-Syntax} includes a number of environments that are used in the well-formedness rules.  \\
+
+First, the type environment $\Gamma$ represents the type variables in the current scope of judgement. Type variables can come into scope at any point where generic parameters are instantiated. We could create a vacuous constraint that acts on all type variables and define the domain of $\Delta$ to be the type variables currently in scope. However, having $\Gamma$ will become very useful when we introduce deny capabilities. \\
+
+Second, the constraint environment $\Delta$ is a list of all the constraints that are active in the current judgment scope. It is primarily used to determine the methods that can be assumed to be present on a type variable for witness relations and method dispatch; it allows the type system to lookup what constraints are acting upon a type variable, and which methods in the constraint have that type variable as a receiver. Given a well-formed program and a sound type system (see Section \ref{sec:genus-sound}), any argument provided for this type variable at runtime will have the expected methods.\\
+
+Finally, we have the standard value environment $E$; this provides a mapping from local variables (including \texttt{this}) to types and is used to type expressions. As such, a new value environment is created for each method call, which we discuss in Section \ref{sec:genus-opsem}.
+
+\subsection{Relations}
+
+We next present rules that ensure the validity of certain relationships in the program: subtyping, constraint entailment, and witnessing.
+
+\subsubsection{Subtyping}
+
+Figure \ref{fig:genus-subtyping} gives the rules for class subtyping. A program judges a class $L_1$ to be a subtype of another class $L_2$ if the declaration of $L_1$ in the program extends $L_2$, and any type variables that occur in both the parameter list for $L_1$ and the arguments passed to $L_2$ in the class declaration are correctly mapped. This relation is defined in rule \texttt{S-Subclass}. Figure \ref{fig:subtype-example} gives an example of how this rule is invoked, with $\texttt{ArrayListSet[String]}$ being judged to be a subtype of $\texttt{Set[List[String]]}$. \\
+
+\begin{figure}[h]
+    \centering
+    \begin{mathpar}
+    \inferrule[S-Subclass]{ Class(Prog, ArrayListSet) = \texttt{class} \; ArrayListSet[\texttt{X}] \; \texttt{extends} \; Set[List[\texttt{X}]] \; \{ ... \} }{Prog\vdash ArrayListSet[\texttt{String}] \leq Set[List[\texttt{X}]]\{\texttt{String} / \texttt{X} \}}
+    \end{mathpar}
+    \caption{Invocation of Subtyping Rule}
+    \label{fig:subtype-example}
+\end{figure}
+
+Subtyping is a transitive and reflexive relation, and the rules \texttt{S-Refl} and \texttt{S-Trans} ensure this is built into the model. The rule \texttt{S-Object} also lets us say that every class is a subtype of a vacuous class $Object$, allowing us to require an \texttt{extends} clause in class declarations.
+
+\subsubsection{Constraint Entailment}
+
+The rules for constraint entailment, given in Figure \ref{fig:genus-ce}, work very similarly to subtyping but applied to constraints rather than classes. A constraint $C_1$ is judged by a program to entail a constraint $C_2$ if the declaration of $C_1$ in the program extends $C_2$, and any type variables that occur in both the parameter lists for $C_1$ and $C_2$ in the constraint declaration are correctly mapped. Again, this relation is both transitive and reflexive.
+
+\subsubsection{Witnessing}
+
+The witness relation judges whether a sequence of types witness a constraint applied to that sequence of types. The two rules defining the judgment are presented in Figure \ref{fig:genus-witness}. As discussed in Section \ref{sec:genus-classes}, classes witness a constraint structurally by implementing the methods required by the constraint. Figure \ref{fig:graph-constraint} presents the multivariate constraint \texttt{GraphLike}, and Figure \ref{fig:graph-class} shows how replacing the type variables \texttt{V} and \texttt{E} with the classes \texttt{Vertex} and \texttt{Edge} show that the classes correctly implement compatible methods to that required by the constraint. The rule \texttt{W-Class} therefore judges the relation using lookup and rewrite rules. \\
+
+First we lookup the methods that are required by the constraint by consulting its declaration in the program, and by recursing to look up methods in any entailed constraints. We then replace the type variables used in the constraint with the sequence of types that we are judging. \\
+
+We then lookup the methods implemented in the classes, again applying the same rewrite if a class has instantiated type variables. The type witness relation then consists of checking that the methods we looked-up on the constraint are a subset of the union of the methods implemented by the types. \\
+
+In addition to classes, the sequence of type could also contain type variables that are constrained in the scope. We therefore implement a lookup rule for type variables, where we assume they contain the methods in the active constraints for which they are the receiver, as discussed in Section \ref{sec:genus-env}. By formulating the witness relation as a series of look-ups, extensions such as this are relatively simple, and keep complexity out of the witness rules. \\
+
+The second rule \texttt{W-Subsume} describes how constraint entailment affects witnessing; if a sequence of types are a witness for a constraint, they are also a witness for any entailed constraint.
+
+\subsection{Programs, Constraints, and Classes}
+
+Programs are judged to be well-formed based on the constraints and classes that compose them. The rule \texttt{W-Prog} in Figure \ref{fig:genus-wfp} says that if all the constraints and classes that form a program are judged to be well-formed, so is that program. \\
+
+There are many aspects of judging a constraint to be well-formed. A constraint of the form `$\texttt{constraint} \: C_1[\overline{\texttt{X}_1} \: \texttt{where} \: \overline{C_2[\overline{\texttt{X}_2}}]] \: \texttt{extends} \: C_3[\overline{\texttt{X}_3}] \; \{ \overline{\tau_1 \: \tau_2.m[\beta](\overline{\tau_3})} \}$` requires several checks. Firstly, any type variables that appear in either the constraints $\overline{C_2}$ in the type parameter list or in the entailed constraint $C_3$ must be declared in the original sequence of variables $\overline{\texttt{X}_1}$. All the other constraints are then checked for well-formedness by invoking the rule \texttt{W-TC} in Figure \ref{fig:genus-wft}. This check is relatively straight forward, as the arguments passed to each constraint are also type variables, but it performs a number of important checks, as discussed in Section \ref{sec:wf-types}. We then check the method declarations $\overline{\tau_1 \: \tau_2.m[\beta](\overline{\tau_3})}$. This is mostly done by invoking rule \texttt{W-Methsig} to check that each method signature is well-formed, with the constraints $\overline{C_2}$ and $C_3$ active, but also performs an additional check that the receiver of each method is a type variable in the list $\overline{\texttt{X}_1}$, and that it is unconstrained, a requirement discussed in Section \ref{sec:genus-constraints}. \\
+
+A class of the form `$\texttt{class} \: L_1[\overline{\texttt{X}} \: \texttt{where} \: \overline{C[\overline{\tau_1}}]] \: \texttt{extends} \:  L_2[\overline{\tau_2}] \{\overline{\texttt{fld}} \; \overline{\tau_3 \: \tau_4.m[\beta](\overline{\tau_5})\{\texttt{e}\}} \}$` goes through the following checks: each constraint in $C[\overline{\tau_1}]$ is checked for well-formedness using the same rule \texttt{W-TC} that we used to check the constraints in the constraint declaration. The invoked rule is the same, but the check is more complex, as the sequence of types may not just contain type variables. We then invoke rule \texttt{W-TL} to check that $L[\overline{\tau_2}]$ is a well-formed type. We then defer to rule \texttt{W-MethDecl} to perform general checks on each method declaration, and perform to more specific checks; the receiver of each method is the same type as the class, and any method that overrides as method in a super class must have invariant parameter and return types.
+
+\subsection{Methods}
+
+The general checks for method well-formedness are relatively simple. A well-formed method declaration `$\tau_1 \; \tau_2.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau}]}](\overline{\tau_3 \; x}) \; \{ \texttt{e} \}$` has a well-formed return type $\tau_1$, a well-formed receiver type $\tau_2$, and well-formed parameter types $\overline{\tau_3}$. The constraints $\overline{C[\overline{\tau}]}$ are active when checking the parameter types, and themselves must be well-formed. The method body, given by the expression \texttt{e} must have a type compatible with $\tau_1$. A method signature has all the same checks as above, without checking the expression.
+
+\subsection{Types} \label{sec:wf-types}
+
+Types in Genus- can either by a type variable, or a class with a sequence of type parameters. Checking a type variable is well-formed is as simple as checking that it is currently in scope, which is done by checking if it is in $\Gamma$. \\
+
+Checking an instantiated class with type arguments of the form $L[\overline{\tau}$ involves checking that each of the type arguments are well-formed, and that there are the same number of arguments in the type as there are in the class declaration. We then invoke the same rule to check the super class from the class declaration, with a rewrite applied that replaces each type variable in $\overline{\texttt{X}}$ with its corresponding type argument in $\overline{\tau}$. Each constraint in the class declaration is checked as well, with the same rewrite applied. Finally, we check that each type argument helps witness the constraint it is part of. We do this by taking each constraint, applying the rewrite to it's type variable list, and then checking that the rewritten variables jointly witness the constraint. \\
+
+Instantiated constraints are constraints that have had a list of type arguments passed to them. They go through largely the same checks as instantiated classes; we check the number of arguments passed is the same as the number of type parameters, and that each argument is itself well-formed. We then apply the same rewrite described above to the constraints that act on the type variables and check they are well-formed, and do the same for the entailed constraint. We also check that the arguments witness the constraints applied to the type variables, in the method described above.
+
+\subsection{Expressions}
+
+When judging expressions, we not only decide if an expression is well-formed, we give a type for that expression. This type represents the type of any value returned by a successful execution of that expression. To type expressions, we use the value environment $E$, which provides a mapping from variables to types. Thus, typing variables requires simply looking them up in $E$, which we do in rules \texttt{var-x} and \texttt{var-this}. \\
+
+Typing a field access $\texttt{e}.f$ works in two stages; first, the target expression \texttt{e} is typed as a class with a number of type arguments. Then the field type is looked up in the class declaration. The type of the field access is the type of the field in the declaration, with a rewrite applied to replace the type parameters with their arguments. \\
+
+A field assignment of the form `$\texttt{e}_1.f = \texttt{e}_2$` separately types $\texttt{e}_1.f$ and $\texttt{e}_2$ to give the same type $\tau$, and then assigns the overall expression that type. Subsumption, discussed later in this section, removes the need for an explicit subtyping check here. \\
+
+Creating a new class with a set of type arguments is obviously typed as that class with those arguments. However, we also check that the type is well-formed. If the class has any fields, they must also be initialised at creation, and so we check that each expression signed to each field has the correct type, and that all fields are present. \\
+
+To type a method call we require several things. The receiving expression has to be typed to get a class to dispatch the method to. We then lookup the method on the class to find the parameter types. We evaluate the types for each of the arguments and check they match those of the parameters. Method calls can also take generic parameters, which are in scope for the parameter list; if any generic parameters are passed, we perform a substitution of the type parameters for their arguments on the parameter types. We also check that the type arguments correctly witness the constraints on the type parameters. \\
+
+We also include a rule for subsumption that simplifies the application of subtyping to the other rules. If a type $\tau_1$ is a subtype of a type $\tau_2$, and a expression is typed as $\tau_1$, we can safely assign the type $\tau_2$ to that expression. For example, when performing a field assignment $\texttt{e}_1.f = \texttt{e}_2$, the right hand side expression $\texttt{e}_2$ can be a subtype of the left hand side expression $\texttt{e}_1.f$. Subsumption allows us to invoke the rule \texttt{fld-ass} when the rhs is a subtype of the lhs without having to explicitly check that in the rule.
+
+\newpage 
+
+\section{Operational Semantics and Runtime Specification} \label{sec:genus-opsem}
+
+Section \ref{sec:genus-rs} given the runtime specification for Genus-, including the runtime entities and the operational semantic. In this section we give a brief overview of the differences between Genus- and a standard runtime system.
+
+\subsection{Runtime Environments and Resolution}
+
+In addition to the standard runtime entities such as heap and stack frame, in Genus- we have introduced a \texttt{runtime environment} as part of the execution frame. This is a mapping from the type variables that are currently in scope to concrete types - fully reified types that do not contain any type variables. \\
+
+Runtime environments are created when execution enters a new object or a new method. If a class contains type parameters, any instantiation of that class must provide type arguments for those parameters. Thus, each object contains its own runtime environment with a mapping of its type parameters to the arguments that were provided at instantiation. A method with type parameters also requires type arguments to be provided upon method call. The variables and arguments form a runtime environment. Therefore, when a method is dispatched to an object, the runtime environment for the stack frame of that execution is the union of the receiver's runtime environment and the runtime environment created by the method call. \\
+
+Type variables are mapped to concrete types at runtime through \textit{resolution}. The \texttt{resolve} function in \ref{fig:genus-resolve} describes how resolution occurs; given a type $\tau$ and a runtime environment $\Omega$, the \texttt{resolve} function recursively looks up any type variables in $\tau$ in $\Omega$ and replaces them with their concrete counterparts. Resolution is used to build new runtime environments, and is instrumental in our definitions of soundness and agreement. The function \textit{resolve} is similar to the \textit{upperBound} function described in Liétar2016.
+
+\subsection{Operational Semantics}
+
+Figure \ref{fig:genus-opsem} provides the operational semantics for Genus-. The are mostly standard execution rules, with the addition of runtime environments, so we discuss them only briefly. \\
+
+\texttt{this} and variables are evaluated by looking them up in the frame; \texttt{this} is the address of the receiver ($\iota$ in the stack frame), and the value of variables are stored in \texttt{vMap} in the frame. Field lookup ($\texttt{e}.f$) and field assignment ($\texttt{e}.f = \texttt{e}'$) both execute the target expression \texttt{e} to give an address $\iota$. Field lookup then looks up the value of the field in $\iota$'s field map, and field assignment executes $\texttt{e}'$ and writes the resulting value into the field map. \\
+
+Instantiation is slightly more complex in that it requires the creation of the object's runtime environment, but it proceeds in the method we described in the previous section. Each expression being assigned to a field is executed in turn, and an object with a new $\iota$ is created containing the runtime environment as described earlier, and a field map containing the values from the executed expressions. This object is then added to the heap. \\
+
+A method call again is slightly more complex than usual. The receiving expression is evaluated to an address, that of the receiving object. The method is looked-up, and the information contained in the program allows us to build the method's runtime environment and value map for the parameters. A new frame is then created, with a runtime environment as described in the previous section, and a variable map containing the evaluated parameter expressions. Execution of the method body then occurs in that frame, and the resulting value is passed back to the calling frame.
+
+\newpage
+
+\section{Lemmas}
+
+Before proving the soundness of the model we have presented thus far, we establish a number of lemmas that will aid us. Most are relatively straight forward, but where not, we also give a proof.
+
+\begin{lemma} \label{lemma:1}
+Given $Prog, \chi \vdash \iota \triangleleft (L[\overline{\tau}], \Omega)$, $\chi(\iota) = (L', \Omega', \_)$, $Class(Prog, L) = L[\overline{\texttt{X}}] \; ...$, then $\forall i \; . \; resolve(\tau_i, \Omega) = \Omega'(\texttt{X}_i)$
+\end{lemma}
+
+The stack-frame's $\Omega$ and each object's $\Omega$ agree with each other.
+
+\begin{lemma} \label{lemma:2}
+Given $Prog \vdash \tau_1 \leq \tau_2$, then $\forall \; \Omega, Prog \vdash resolve(\tau_1, \Omega) \leq resolve(\tau_2, \Omega)$
+\end{lemma}
+\begin{proof}
+\begin{enumerate}
+    \item \label{l2-1} Assume $\tau_1$ = $L_1[\overline{\tau_1}]$ and $Class(Prog, L_1) = \texttt{class} \; L_1[\overline{\texttt{X}}] \; \texttt{extends} \; L_2[\overline{\tau_2}] \; ...$
+    \item By givens and (\ref{l2-1}), $\tau_2 = L_2[\overline{\tau_2} \{\overline{\tau_1}/\overline{\texttt{X}} \}]$
+    \item \label{l2-3} $resolve(L_1[\overline{\tau_1}], \Omega) = L_1[\overline{resolve({\tau_1}, \Omega)}]$
+    \item \label{l2-4} $resolve(L_2[\overline{\tau_2} \{\overline{\tau_1}/\overline{\texttt{X}} \}], \Omega) = L_2[\overline{resolve(\tau_2, \Omega)} \{\overline{resolve(\tau_1, \Omega)}/\overline{\texttt{X}} \}]$
+    \item \label{l2-5}Let $\overline{resolve(\tau_1, \Omega)} = \overline{\sigma_1}$, and $\overline{resolve(\tau_2, \Omega)} = \overline{\sigma_2}$
+    \item \label{l2-6}(\ref{l2-3}) gives $L_1[\overline{\sigma_1}]$ and (\ref{l2-4}) gives $L_2[\overline{\sigma_2}\{\overline{\sigma_1}/\overline{\texttt{X}}\}$
+    \item By assumption, (\ref{l2-6}), and definition of \texttt{S-Concrete}, $Prog \vdash resolve(\tau_1, \Omega) \leq resolve(\tau_2, \Omega)$
+\end{enumerate}
+\end{proof}
+
+Resolution preserves the subtype relationship.
+
+\begin{lemma} \label{lemma:3}
+For $\Omega' = (\overline{\texttt{X} \mapsto resolve(\tau, \Omega)}), \; resolve(L[\overline{\tau}], \Omega) \equiv resolve(L[\overline{\texttt{X}}], \Omega')$
+\end{lemma}
+
+Transitivity of map application.
+
+\begin{lemma} \label{lemma:4}
+Given $Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}}] \; ...$, then $Field(Prog, L, f) \equiv Field(Prog, L[\overline{\texttt{X}}], f)$
+\end{lemma}
+
+The identity element for rewriting.
+
+\begin{lemma} \label{lemma:5}
+Given $Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}}] \; ...$, then $resolve(Field(Prog, L, f), (\overline{\texttt{X} \mapsto resolve(\tau, \Omega)})) \equiv resolve(Field(Prog, L[\overline{\tau}], f), \Omega)$
+\end{lemma}
+
+How resolution relates to field lookup.
+
+\begin{lemma} \label{lemma:6}
+$FV(\tau_2) \subseteq \overline{\texttt{X}} \implies resolve(\tau_2, \overline{\texttt{X} \mapsto resolve(\tau_1, \Omega})) \equiv resolve(\tau_2\{\overline{\tau_1}/\overline{\texttt{X}}\}, \Omega)$
+\end{lemma}
+
+Equivalence of rewrite and resolution.
+
+\begin{lemma} \label{lemma:7}
+Given $Prog; \Delta \vdash \overline{\tau} :: C[\overline{\tau}]$,  and $\overline{\sigma} = \overline{resolve(\tau, \Omega)}$, then $Prog; \Delta \vdash \overline{\sigma} :: C[\overline{\sigma}]$
+\end{lemma}
+
+Resolution preserves witnessing.
+
+\begin{lemma} \label{lemma:8}
+Given $Prog, \chi \vdash \iota \; \triangleleft \; resolve(\tau, \Omega)$ and $Prog, \chi \vdash v \; \triangleleft \; resolve(Field(Prog, \tau, f), \Omega)$, then $Prog, \chi[\iota, f \mapsto v] \vdash \iota \triangleleft resolve(\tau, \Omega)$
+\end{lemma}
+
+Agreement on field write preserves well-formedness.
+
+\begin{lemma} \label{lemma:9}
+$FV(\tau_1) \subseteq \overline{\texttt{X}} \implies \tau_1\{\overline{\tau_2}/\overline{\texttt{X}}\} = resolve(\tau_1, (\overline{\texttt{X} \mapsto \tau_2}))$
+\end{lemma}
+
+Further equivalence of rewrite and resolution.
+
+\begin{lemma} \label{lemma:10}
+Given 
+\begin{itemize}
+    \item $Prog, \chi \vdash \iota \triangleleft resolve(\tau_1, \Omega)$,
+    \item $\chi(\iota) = (L, \Omega', \_)$,
+    \item $Func(Prog, \Delta, \tau_1, m) = \tau_3 \; \tau_1.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau_5}]}](\overline{\tau_4})$,
+    \item $Meth(Prog, L, m) = \tau' \; \tau''.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau'''}]}](\overline{\tau''''})\{\texttt{e}\}$
+\end{itemize}
+then 
+\begin{itemize}
+    \item $resolve(\tau_3, \Omega) = resolve(\tau', \Omega)$,
+    \item $resolve(\tau_1, \Omega) \geq resolve(\tau'', \Omega)$,
+    \item $\forall i, j \; . \; resolve((\tau_5)_{ij}, \Omega) = resolve((\tau''')_{ij}, (\overline{\texttt{X} \mapsto resolve(\texttt{X}, \Omega)}, \Omega')$,
+    \item $\forall k \; . \; resolve((\tau_4)_k, \Omega) = resolve((\tau'''')_k, (\overline{\texttt{X} \mapsto resolve(\texttt{X}, \Omega)}, \Omega')$
+\end{itemize}
+\end{lemma}
+
+How resolution relates to static and dynamic types on method call.
+
+\newpage
+
+\section{Soundness} \label{sec:genus-sound}
+
+Now we present a proof of soundness through structural induction on the operational semantics from Section \ref{sec:genus-opsem}. Our theorem of soundness is given Figure \ref{fig:genus-soundness}, and states that given a well-formed program, heap, and stack, a valid expression \texttt{e} of type $\tau$, and a valid evaluation rule that gives a new heap and a value $v$, the value $v$ agrees with the type $\tau$, and the new heap is also well-formed. These two things respectively show subject reduction and progress, and therefore show the model to be sound. The following sections present the proof by structural induction on a case-by-case basis, using the lemmas we have define previously.
+
+\subsection{Case THIS}
+
+Given:
+\begin{enumerate}[label=\arabic*)]
+    \item $\vdash Prog : \texttt{ok}$
+    \item $Prog; \Gamma; \Delta; E \vdash \texttt{this} : E(\texttt{this})$
+    \item \label{proof:this-3} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond$
+    \item $\texttt{this}, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P \iota, \chi $
+\end{enumerate}
+Show:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:this-5} $Prog, \chi \vdash \iota \triangleleft resolve(E(\texttt{this}), \Omega)$
+    \item \label{proof:this-6} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond$
+\end{enumerate}
+\begin{proof}
+Definition of \ref{proof:this-3} gives \ref{proof:this-5} and \ref{proof:this-6}
+\end{proof}
+
+\subsection{Case VAR}
+
+Given:
+\begin{enumerate}[label=\arabic*)]
+    \item $\vdash Prog : \texttt{ok}$
+    \item $Prog; \Gamma; \Delta; E \vdash x : E(x)$
+    \item \label{proof:var-3} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond$
+    \item $x, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P \texttt{vMap}(x), \chi $
+\end{enumerate}
+Show:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:var-5} $Prog, \chi \vdash \texttt{vMap}(x) \triangleleft resolve(E(x), \Omega)$
+    \item \label{proof:var-6} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond$
+\end{enumerate}
+\begin{proof}
+Definition of \ref{proof:var-3} gives \ref{proof:var-5} and \ref{proof:var-6}
+\end{proof}
+
+\subsection{Case FLD}
+Given:
+\begin{enumerate}[label=\arabic*)]
+    \item \label{proof:fld-1} $\vdash Prog : \texttt{ok}$
+    \item \label{proof:fld-2} $Prog; \Gamma; \Delta; E \vdash \texttt{e}.f : \tau$
+    \item \label{proof:fld-3} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond$
+    \item \label{proof:fld-4} $\texttt{e}.f, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P v, \chi' $
+\end{enumerate}
+Show:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fld-5} $Prog, \chi' \vdash v \triangleleft resolve(\tau, \Omega)$
+    \item \label{proof:fld-6} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi' \; \diamond$
+\end{enumerate}
+\begin{proof} \ref{proof:fld-2} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fld-7} $Prog; \Gamma; \Delta; E \vdash \texttt{e} : L[\overline{\tau_1}]$ 
+    \item \label{proof:fld-8} $Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}}] \; ... \; \{... \; \tau' \; f \; ...\}$, $FV(\tau') \subseteq \overline{\texttt{X}}$, and $\tau = \tau'\{\overline{\tau_1}/\overline{\texttt{X}}\}$
+\end{enumerate}
+\ref{proof:fld-4} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fld-9} $\texttt{e}, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P \iota', \chi'$
+    \item \label{proof:fld-10} $v = \chi'(\iota')\downarrow_3(f)$
+\end{enumerate}
+\ref{proof:fld-7}, \ref{proof:fld-9} and IH gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fld-11} $Prog, \chi' \vdash \iota' \triangleleft resolve(L[\overline{\tau_1}], \Omega)$
+    \item \label{proof:fld-12} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi' \; \diamond$
+\end{enumerate}
+Assume $\chi'(\iota') = (L', \Omega', \_)$. Then, by \ref{proof:fld-11} and Lemma \ref{lemma:1}:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fld-13} $\forall i \; . \; resolve((\tau_1)_i, \Omega) = \Omega'(\texttt{X}_i)$
+\end{enumerate}
+By definition of judgement at \ref{proof:fld-11} and \ref{proof:fld-8} we get:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fld-14} $Prog, \chi' \vdash \chi'(\iota')\downarrow_3(f) \triangleleft resolve(\tau', \Omega')$
+\end{enumerate}
+Which by \ref{proof:fld-10} is equivalent to:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fld-15} $Prog, \chi' \vdash v \triangleleft resolve(\tau', \Omega')$
+\end{enumerate}
+By \ref{proof:fld-8} and Lemma \ref{lemma:6} we have that:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fld-16} $resolve(\tau, \Omega) = resolve(\tau'\{\overline{\tau_1}/\overline{\texttt{X}}\}, \Omega) = resolve(\tau', (\overline{\texttt{X} \mapsto resolve(\tau_1, \Omega)}))$
+\end{enumerate}
+By \ref{proof:fld-13}:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fld-17} $resolve(\tau', (\overline{\texttt{X} \mapsto resolve(\tau_1, \Omega)})) = resolve(\tau', (\overline{\texttt{X} \mapsto \Omega'(\texttt{X})})) = resolve(\tau', \Omega')$
+\end{enumerate}
+\ref{proof:fld-15}, \ref{proof:fld-16}, and \ref{proof:fld-17} give \ref{proof:fld-5}, and \ref{proof:fld-12} gives \ref{proof:fld-6}
+\end{proof}
+
+\subsection{Case FLD-ASS}
+Given:
+\begin{enumerate}[label=\arabic*)]
+    \item \label{proof:fldass-1} $\vdash Prog : \texttt{ok}$
+    \item \label{proof:fldass-2} $Prog; \Gamma; \Delta; E \vdash \texttt{e}_1.f = \texttt{e}_2 : \tau_2$
+    \item \label{proof:fldass-3} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond$
+    \item \label{proof:fldass-4} $\texttt{e}_1.f = \texttt{e}_2, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P v, \chi' $
+\end{enumerate}
+Show:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-5} $Prog, \chi' \vdash v \triangleleft resolve(\tau_2, \Omega)$
+    \item \label{proof:fldass-6} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi' \; \diamond$
+\end{enumerate}
+\begin{proof}
+\ref{proof:fldass-2} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-7} $Prog; \Gamma; \Delta; E \vdash \texttt{e}_1.f : \tau_1$
+    \item \label{proof:fldass-8} $Prog; \Gamma; \Delta; E \vdash \texttt{e}_2 : \tau_2$
+    \item \label{proof:fldass-9} $Prog \vdash \tau_2 \leq \tau_1$
+\end{enumerate}
+\ref{proof:fldass-4} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-10} $\texttt{e}_1, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P \iota_1, \chi''$
+    \item \label{proof:fldass-11} $\texttt{e}_2, (\iota, \Omega, \texttt{vMap}), \chi'' \rightsquigarrow_P v, \chi'''$
+    \item \label{proof:fldass-12} $\chi' = \chi'''[\iota_1, f \mapsto v]$
+\end{enumerate}
+We can rewrite \ref{proof:fldass-12} as:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-13} $v = \chi'(\iota_1)\downarrow_3(f)$
+\end{enumerate}
+By \ref{proof:fldass-7}, \ref{proof:fldass-10} and IH:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-14} $Prog, \chi'' \vdash \chi''(\iota_1)\downarrow_3(f) \triangleleft resolve(\tau_1, \Omega)$
+    \item \label{proof:fldass-15} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi'' \; \diamond$
+\end{enumerate}
+By \ref{proof:fldass-8}, \ref{proof:fldass-11} and IH:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-16} $Prog, \chi''' \vdash v \triangleleft resolve(\tau_2, \Omega)$
+    \item \label{proof:fldass-17} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi''' \; \diamond$
+\end{enumerate}
+By \ref{proof:fldass-9} and Lemma \ref{lemma:2} we have:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-18} $resolve(\tau_2, \Omega) \leq resolve(\tau_1, \Omega)$ 
+\end{enumerate}
+\ref{proof:fldass-16}, \ref{proof:fldass-18} and the definition of \texttt{SA-SUB} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-19} $Prog, \chi''' \vdash v \triangleleft resolve(\tau_1, \Omega)$ 
+\end{enumerate}
+By definition of \ref{proof:fldass-7} and definition of rule \texttt{L-F-T}:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-20} $Prog; \Gamma; \Delta; E \vdash \texttt{e}_1 : L[\overline{\tau}]$
+    \item \label{proof:fldass-21} $\tau_1 = Field(Prog, L[\overline{\tau}], f)$
+\end{enumerate}
+\ref{proof:fldass-21} makes \ref{proof:fldass-19} equivalent to:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-22} $Prog, \chi''' \vdash v \triangleleft resolve(Field(Prog, L[\overline{\tau}]
+    , f), \Omega)$ 
+\end{enumerate}
+\ref{proof:fldass-10}, \ref{proof:fldass-20}, and IH gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-23} $Prog, \chi''' \vdash \iota_1 \triangleleft resolve(L[\overline{\tau}], \Omega)$ 
+\end{enumerate}
+\ref{proof:fldass-22}, \ref{proof:fldass-23}, and Lemma \ref{lemma:8} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:fldass-24} $Prog, \chi'''[\iota_1, f \mapsto v] \vdash \iota_1 \triangleleft resolve(L[\overline{\tau}], \Omega)$ 
+\end{enumerate}
+By \ref{proof:fldass-17} and \ref{proof:fldass-24}, we get \ref{proof:fldass-6}. \\
+To show \ref{proof:fldass-5}, we consider 3 cases:
+\begin{enumerate}
+    \item \label{proof:fldass-case1} $v = \texttt{null}$: trivial
+    \item \label{proof:fldass-case2} $v = \iota' \neq \iota_1$: given by \ref{proof:fldass-16}
+    \item \label{proof:fldass-case3} $v = \iota_1$: given by \ref{proof:fldass-16} and \ref{proof:fldass-19}
+\end{enumerate}
+\end{proof}
+
+\subsection{Case NEW}
+
+Given:
+\begin{enumerate}[label=\arabic*)]
+    \item \label{proof:new-1} $\vdash Prog : \texttt{ok}$
+    \item \label{proof:new-2} $Prog; \Gamma; \Delta; E \vdash \texttt{new} \; L[\overline{\tau_1}](\overline{f = \texttt{e}}) : L[\overline{\tau_1}]$
+    \item \label{proof:new-3} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond$
+    \item \label{proof:new-4} $\texttt{new} \; L[\overline{\tau_1}](\overline{f = \texttt{e}}), (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P \iota', \chi' $
+\end{enumerate}
+Show:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:new-5} $Prog, \chi' \vdash \iota' \triangleleft resolve(L[\overline{\tau_1}], \Omega)$
+    \item \label{proof:new-6} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi' \; \diamond$
+\end{enumerate}
+\begin{proof}
+\ref{proof:new-2} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:new-7} $Prog; \Gamma \vdash L[\overline{\tau_1}] : \texttt{ok}$
+    \item \label{proof:new-8} $\forall i \; . \; Prog; \Gamma; \Delta; E \vdash \texttt{e}_i : Field(Prog, L[\overline{\tau_1}], f_i)$
+    \item \label{proof:new-9} $\overline{f} = Fields(Prog, L)$
+\end{enumerate}
+\ref{proof:new-4} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:new-10} $\texttt{e}_i, (\iota, \Omega, \texttt{vMap}), \chi_i \rightsquigarrow_P v_i, \chi_{i+1} \quad (i = 0, ..., n-1)$
+    \item \label{proof:new-11} $Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau_2}]}] \; ...$
+    \item \label{proof:new-12} for new $\iota'$, $\chi' = \chi_n[\iota' \mapsto (L, (\overline{\texttt{X} \mapsto resolve(\tau_1, \Omega)}), (\overline{f \mapsto v}))]$
+\end{enumerate}
+By \ref{proof:new-8}, \ref{proof:new-10}, and IH:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:new-13} $\forall i \; . \; Prog, \chi' \vdash v_i \triangleleft resolve(Field(Prog, L[\overline{\tau_1}], f_i), \Omega)$
+    \item \label{proof:new-14} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi_i \; \diamond \quad (i = 1, .., n)$
+\end{enumerate}
+For simplicity, we rewrite \ref{proof:new-12} as:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:new-15} $\chi'(\iota') = (L, \Omega', (\overline{f \mapsto v}))$, where $\Omega' = (\overline{\texttt{X} \mapsto resolve(\tau_1, \Omega)})$
+\end{enumerate}
+\ref{proof:new-11}, \ref{proof:new-15}, and Lemma \ref{lemma:3} give:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:new-16} $Prog, \chi' \vdash \iota' <: resolve(L[\overline{\tau_1}], \Omega)$
+\end{enumerate}
+\ref{proof:new-13}, \ref{proof:new-15}, and Lemma \ref{lemma:5} give:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:new-17} $\forall i \; . \; Prog, \chi' \vdash \chi'(\iota')\downarrow_3(f_i) \triangleleft resolve(Field(Prog, L, f_i), \Omega')$
+\end{enumerate}
+By definition of the judgement at \ref{proof:new-7}:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:new-18} $\forall j \; . \; Prog; \Gamma; \Delta \vdash (\overline{\tau_2\{\overline{\tau_1}/\overline{\texttt{X}}\}})_j :: C[\overline{\tau_2\{\overline{\tau_1}/\overline{\texttt{X}}\}}]_j$
+\end{enumerate}
+Given \ref{proof:new-11} and the shorthand from \ref{proof:new-15}, application of Lemmas \ref{lemma:7} and \ref{lemma:6} to \ref{proof:new-18} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:new-19} $\forall j \; . \; Prog; \Gamma; \Delta \vdash (\overline{resolve(\tau_2, \Omega')})_j :: C[\overline{resolve(\tau_2, \Omega')}]_j$
+\end{enumerate}
+\ref{proof:new-15}, \ref{proof:new-16}, \ref{proof:new-17}, and \ref{proof:new-19} give \ref{proof:new-5}. \ref{proof:new-5} and \ref{proof:new-14} give \ref{proof:new-6}.
+\end{proof}
+
+\subsection{Case M-CALL}
+
+Given:
+\begin{enumerate}[label=\arabic*)]
+    \item \label{proof:m-1} $\vdash Prog : \texttt{ok}$
+    \item \label{proof:m-2} $Prog; \Gamma; \Delta; E \vdash \texttt{e}_1.m[\overline{\tau_2}](\overline{\texttt{e}_4}) : \tau_3$
+    \item \label{proof:m-3} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond$
+    \item \label{proof:m-4} $\texttt{e}_1.m[\overline{\tau_2}](\overline{\texttt{e}_4}), (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P v, \chi' $
+\end{enumerate}
+Show:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-5} $Prog, \chi' \vdash v \triangleleft resolve(\tau_3, \Omega)$
+    \item \label{proof:m-6} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi' \; \diamond$
+\end{enumerate}
+\begin{proof}
+\ref{proof:m-2} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-7} $Prog; \Gamma; \Delta; E \vdash \texttt{e}_1 : \tau_1$
+    \item \label{proof:m-8} $\forall i \; . \; Prog; \Gamma \vdash (\tau_2)_i : \texttt{ok}$
+    \item \label{proof:m-9} $Func(Prog, \Delta, \tau_1, m) = \tau_3 \; \tau_1.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau_5}]}](\overline{\tau_4})$
+    \item \label{proof:m-10} $Prog; \Gamma; \Delta; E \vdash (\texttt{e}_4)_i : (\tau_4 \{\overline{\tau_2}/\overline{\texttt{X}}\}) \quad (i = 0, ..., n-1)$
+    \item \label{proof:m-11} $Prog; \Gamma; \Delta \vdash (\overline{\tau_5}\{\overline{\tau_2}/\overline{\texttt{X}}\})_i :: C[\overline{\tau_5}\{\overline{\tau_2}/\overline{\texttt{X}}\}]_i  \quad (i = 0, ..., n-1)$
+\end{enumerate}
+\ref{proof:m-4} gives:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-12} $\texttt{e}_1, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P \iota', \chi_0$ 
+    \item \label{proof:m-13} Assume $\chi_0(\iota') = (L, \Omega', \_)$
+    \item \label{proof:m-14} $(\texttt{e}_4)_i, (\iota, \Omega, \texttt{vMap}), \chi_i \rightsquigarrow_P v_i, \chi_{i+1}  \quad (i = 0, ..., n-1)$
+    \item \label{proof:m-15} $Meth(Prog, L, m) = \tau' \; \tau''.m[\overline{\texttt{Y}} \; \texttt{where} \; \overline{C[\overline{\tau'''}]}](\overline{\tau'''' \; x})\{\texttt{e}'\}$
+    \item \label{proof:m-16} $\texttt{e}', (\iota', (\overline{x \mapsto v}), (\overline{\texttt{Y} \mapsto resolve(\tau_2, \Omega)} \cup \Omega')), \chi_n \rightsquigarrow v, \chi'$
+\end{enumerate}
+\ref{proof:m-7}, \ref{proof:m-12}, and IH:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-17} $Prog, \chi_0 \vdash \iota' \triangleleft resolve(\tau_1, \Omega)$ 
+    \item \label{proof:m-18} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi_0 \; \diamond$ 
+\end{enumerate}
+\ref{proof:m-10}, \ref{proof:m-14}, and IH:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-19} $Prog, \chi' \vdash v_i \triangleleft resolve((\tau_4\{\overline{\tau_2/\overline{\texttt{X}}}\})_i, \Omega) \quad (i = 0, ..., n-1)$ 
+    \item \label{proof:m-20} $Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi_{i+1} \; \diamond \quad (i = 0, ..., n-1)$ 
+\end{enumerate}
+By \ref{proof:m-17}, \ref{proof:m-13}, \ref{proof:m-9}, and \ref{proof:m-15}:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-21} $resolve(\tau_3, \Omega) = resolve(\tau', \Omega')$
+    \item \label{proof:m-22} $resolve(\tau_1, \Omega) \geq resolve(\tau'', \Omega')$
+    \item \label{proof:m-23} $\forall i, j \; . \; resolve((\tau_5)_{ij}, \Omega) = resolve((\tau''')_{ij}, (\overline{\texttt{X} \mapsto resolve(\texttt{X}, \Omega)} \cup \Omega'))$
+    \item \label{proof:m-24} $\forall i \; . \; resolve((\tau_4)_i, \Omega) = resolve((\tau'''')_i, (\overline{\texttt{X} \mapsto resolve(\texttt{X}, \Omega)} \cup \Omega'))$
+\end{enumerate}
+By \ref{proof:m-17}, \ref{proof:m-22}, $FV(\tau'') \cap \overline{\texttt{X}} = \emptyset$ and subsumption of agreement:
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-25} $Prog, \chi_n \vdash \iota' \triangleleft resolve(\tau'', (\overline{\texttt{X} \mapsto resolve(\tau_2, \Omega)} \cup \Omega'))$
+\end{enumerate}
+By \ref{proof:m-19}, \ref{proof:m-24}, and rules of rewrite
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-26} $\forall i \; . \; Prog, \chi_n \vdash v_i \triangleleft resolve((\tau'''')_i, (\overline{\texttt{X} \mapsto resolve(\tau_2, \Omega)} \cup \Omega'))$
+\end{enumerate}
+By \ref{proof:m-11}, \ref{proof:m-23}, and Lemma \ref{lemma:7}
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-27} $\forall i \; . \; Prog, \Delta \vdash (\overline{resolve((\tau'''), (\overline{\texttt{X} \mapsto resolve(\tau_2, \Omega)} \cup \Omega'))})_i :: C[\overline{resolve((\tau'''), (\overline{\texttt{X} \mapsto resolve(\tau_2, \Omega)} \cup \Omega'))}]_i$
+\end{enumerate}
+By \ref{proof:m-20}, \ref{proof:m-25}, \ref{proof:m-26}, \ref{proof:m-27}
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-28} $Prog; \Delta, \overline{C[\overline{\tau'''}]}; \texttt{this}:\tau'', \overline{x : \tau''''} \vdash (\iota', (\overline{\texttt{X} \mapsto resolve(\tau_2, \Omega)} \cup \Omega'), (\overline{x \mapsto v})), \chi_n \; \diamond$ 
+\end{enumerate}
+By \ref{proof:m-1} and \ref{proof:m-15}
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-29} $Prog; \Delta, \overline{C[\overline{\tau'''}]}; \texttt{this}:\tau'', \overline{x : \tau''''} \vdash \texttt{e}' : \tau' $
+\end{enumerate}
+By \ref{proof:m-29}, \ref{proof:m-28}, \ref{proof:m-16} and IH
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-30} $Prog, \chi' \vdash V \triangleleft resolve(\tau', (\overline{\texttt{X} \mapsto resolve(\tau_2, \Omega)} \cup \Omega'))$
+    \item \label{proof:m-31} $Prog; \Delta, \overline{C[\overline{\tau'''}]}; \texttt{this}:\tau'', \overline{x : \tau''''} \vdash (\iota', (\overline{\texttt{X} \mapsto resolve(\tau_2, \Omega)} \cup \Omega'), (\overline{x \mapsto v})), \chi' \; \diamond$ 
+\end{enumerate}
+By \ref{proof:m-30} and $FV(\tau') \cap \overline{\texttt{X}} = \emptyset$
+\begin{enumerate}[label=\arabic*), resume]
+    \item \label{proof:m-32} $Prog, \chi' \vdash v \triangleleft resolve(\tau', \Omega')$
+\end{enumerate}
+From \ref{proof:m-21} and \ref{proof:m-32} we get \ref{proof:m-5}, and by \ref{proof:m-20} and \ref{proof:m-31} we get \ref{proof:m-6}.
+\end{proof} 

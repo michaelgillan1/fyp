@@ -1,0 +1,12 @@
+\begin{tikzpicture}[auto,node distance=1.5cm]
+    \node[entity] (actor) {$\alpha$};
+    \node[entity] (obj1) [below = of actor] {$\iota_1$};
+    \node[entity] (obj2) [below = of obj1]  {$\iota_2$};
+    \node[entity] (obj3) [below = of obj2]  {$\iota_3$};
+    \draw[->] (actor)
+        edge	 node {\texttt{x}}    (obj1);
+    \draw[->] (obj1)
+        edge	 node {\texttt{f1}}	(obj2);
+    \draw[->] (obj2)
+        edge	 node {\texttt{f2}}	(obj3);
+\end{tikzpicture}

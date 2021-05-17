@@ -1,0 +1,374 @@
+\appendix
+\chapter{Genus- Model} \label{appendix:genusminus}
+
+\section{Syntax}
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+        &Programs & \texttt{P} &::= \overline{\texttt{CO}} \: \overline{\texttt{CL}} \\
+        &Constraints & \texttt{CO} &::= \texttt{constraint} \: C_1[\overline{\texttt{X}} \; \texttt{where} \; \overline{C_2[\overline{\texttt{Y}}]}] \: \texttt{extends} \: C_3[\overline{\texttt{Z}}] \; \{ \overline{\texttt{methSig}} \} \\
+        &Classes & \texttt{CL} &::= \texttt{class} \: L_1[\beta] \: \texttt{extends} \: L_2[\overline{\tau}] \; \{ \overline{\texttt{fld}} \: \overline{\texttt{meth}} \} \\
+        &Method \; Signature & \texttt{methSig} &::= \tau_1 \: \tau_2.m[\beta](\overline{\tau_3}) \\
+        &Method \; Declaration & \texttt{meth} &::= \texttt{methSig} \; \{ \texttt{e}\} \\
+        &Field \; Declaration & \texttt{fld} &::= \tau \; f \\
+        &Generic \; Parameters & \beta &::= \overline{\texttt{X}} \: \texttt{where} \: \overline{C[\overline{\tau}]} \\
+        &Types & \tau &::= \texttt{X} \: | \: L[\overline{\tau}] \\
+        &Expressions & \texttt{e} &::= x \; | \; \texttt{e}.f \; | \; \texttt{e}.f \: = \: \texttt{e} \; | \; \texttt{this} \; | \; \texttt{new} \: L[\overline{\tau}]( \overline{f = \texttt{e}} ) \; | \; \texttt{e}.m[\overline{\tau_2}](\overline{\texttt{e}}) \\
+        &Type \; Environments & \Gamma &::= \overline{\texttt{X}} \\
+        &Constraint \; Environments & \Delta &::= \overline{C[\overline{\texttt{X}}]} \\
+        &Value \; Environments & E &::= \emptyset \; | \; E, x : \tau \; | \; E, \texttt{this} : \tau 
+    \end{align*}
+    \begin{align*}
+        &Constraint \: Names & &C & &Class \: Names & &L \\
+        &Method \: Names & &m & &Field \: Names & &f \\
+        &Variable \: Names & &x & &Type \: Variables & &\texttt{X}
+    \end{align*}
+    \caption{Syntax}
+    \label{fig:G-Syntax}
+\end{figure}
+\newpage
+
+\section{Interface to Constraint Translation}\label{appendix:intertrans}
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+        &Interface \; Declaration & \texttt{I} &::= \texttt{interface} \; I\langle{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\texttt{Y}}]}\rangle \{ \overline{\Dot{\tau_1} \: m[\beta](\overline{\Dot{\tau_2}})} \} \\
+        &Programs & \texttt{P} &::= \overline{\texttt{CO}} \: \overline{\texttt{CL}} \: \overline{\texttt{I}} \\
+        &Interface \; Types & \Dot{\tau} &::= \tau \: | \: I\langle\overline{\Dot{\tau}}\rangle \\
+        &Method \; Signature & \texttt{methSig} &::= \Dot{\tau_1} \: \tau_2.m[\beta](\overline{\Dot{\tau_3}})
+    \end{align*}
+    \caption{Interface Syntax}
+    \label{fig:interface-syntax}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+       &expand :: I\langle\overline{\Dot{\tau}}\rangle \times \Gamma \; \to \; \overline{\texttt{X}} \times \overline{C[\overline{\tau}}] \\
+       &expand(I\langle\overline{\tau}\rangle, \Gamma) = (\texttt{U}, \; C_I[\texttt{U}, \overline{\tau}]) \quad \texttt{where U new in } \Gamma  \\
+       &expand(I\langle\overline{\Dot{\tau}}\rangle, \Gamma) = (\texttt{U}:\overline{\texttt{U}'}:\overline{us}, \; C_I[\texttt{U},  \overline{\texttt{U}'}]:\overline{cs}) \\
+       &\quad\quad\quad \texttt{where U new in } \Gamma \land \forall i \; . \; expand(\Dot{\tau}_i, \Gamma:\texttt{U}) = (\texttt{U}'_i:us_i, \; cs_i) \\
+       &\quad\quad\quad us :: \overline{\texttt{X}}, \; cs :: \overline{C[\overline{\tau}]}
+    \end{align*}
+    \caption{Definition of \textit{expand} function}
+    \label{fig:interface-expand}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[T-Prog]{\forall i \; . \; \texttt{CO}_i \rightsquigarrow^T \texttt{CO}'_i \\\\
+        \forall j \; . \; \texttt{CL}_j \rightsquigarrow^T \texttt{CL}'_j \\\\
+        \forall k \; . \; \texttt{I}_k \rightsquigarrow^T \texttt{CO}'_{i+k}}{\texttt{P} \rightsquigarrow^T \overline{\texttt{CO}'} \: \overline{\texttt{CL}'}}
+        \and
+        \inferrule[T-Interface]{I \rightsquigarrow^T C_I \\\\
+        \texttt{constraint} \; C_I[\texttt{S}, \overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\texttt{Y}}]}] \{ \overline{\Dot{\tau_1} \: \texttt{S}.m[\beta](\overline{\Dot{\tau_3}})} \} \rightsquigarrow^T c  }{\texttt{interface} \; I\langle\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\texttt{Y}}]}\rangle \{ \overline{\Dot{\tau_1} \: m[\beta](\overline{\Dot{\tau_2}})} \} \rightsquigarrow^T c}
+        \and
+        \inferrule[T-Ident]{C_I = `c\_` + I}{I \rightsquigarrow^T C_I}
+        \and
+        \inferrule[T-Meth]{\forall i \; . \; expand(I\langle\overline{\Dot{\tau}}\rangle_i, \Gamma:\overline{\texttt{X}}) =  (\texttt{U}_i : us_i, cs_i)}{\tau_1 \: \tau_2.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\texttt{Y}}]}](\overline{\tau_3}, \overline{I\langle\overline{\tau}\rangle}), \Gamma \rightsquigarrow^T \tau_1 \: \tau_2.m[\overline{\texttt{X}}, \overline{\texttt{U}}, \overline{us} \; \texttt{where} \; \overline{C[\overline{\texttt{Y}}]}, \overline{cs}](\overline{\tau_3}, \overline{\texttt{U}})}
+        \and
+        \inferrule[T-Constraint]{\forall i \; . \; expand(I\langle\overline{\Dot{\tau}}\rangle_i, \overline{\texttt{X}}) =  (\texttt{U}_i : us_i, cs_i) \\\\
+        \forall i \; . \; (\texttt{U}_i \; (\tau_2.m[\beta](\overline{\Dot{\tau_3}}))_i, \overline{\texttt{X}}:\overline{\texttt{U}}:\overline{us} \rightsquigarrow^T \texttt{meth}_i) \\\\
+        \forall j \; . \; ((\tau_4 \: \tau_3.m[\beta](\overline{\Dot{\tau_6}}))_j, \overline{\texttt{X}}:\overline{\texttt{U}}:\overline{us} \rightsquigarrow^T \texttt{meth}_{i+j})}{\texttt{constraint} \: C_1[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\texttt{Y}}]}] \: \texttt{extends} \: C_2[\overline{\texttt{Z}}] \; \{ \overline{I\langle\overline{\Dot{\tau}}\rangle \: \tau_2.m[\beta](\overline{\Dot{\tau_3}})}, \overline{\tau_4 \; \tau_5.m[\beta](\overline{\Dot{\tau_6}})} \} \rightsquigarrow^T \\\\ \texttt{constraint} \: C_1[\overline{\texttt{X}}, \overline{\texttt{U}}, \overline{us} \; \texttt{where} \; \overline{C[\overline{\texttt{Y}}]}, \overline{cs}] \: \texttt{extends} \: C_2[\overline{\texttt{Z}}] \; \{\overline{\texttt{meth}}\}}
+        \and
+        \inferrule[T-Class]{\forall i \; . \; expand(I\langle\overline{\Dot{\tau}}\rangle_i, \overline{\texttt{X}}) =  (\texttt{U}_i : us_i, cs_i) \\\\
+        \forall i \; . \; (\texttt{U}_i \; (\tau_2.m[\beta](\overline{\Dot{\tau_3}}) \; \{\texttt{e}\})_i, \overline{\texttt{X}}:\overline{\texttt{U}}:\overline{us} \rightsquigarrow^T \texttt{meth}_i) \\\\
+        \forall j \; . \; ((\tau_4 \: \tau_3.m[\beta](\overline{\Dot{\tau_6}}) \; \{\texttt{e}\})_j, \overline{\texttt{X}}:\overline{\texttt{U}}:\overline{us} \rightsquigarrow^T \texttt{meth}_{i+j})}{\texttt{class} \: L_1[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\texttt{Y}}]}] \: \texttt{extends} \: L_2[\overline{\tau}] \; \{\overline{\texttt{fld}}, \; \overline{I\langle\overline{\Dot{\tau}}\rangle \: \tau_2.m[\beta](\overline{\Dot{\tau_3}}) \; \{\texttt{e}\}}, \overline{\tau_4 \; \tau_5.m[\beta](\overline{\Dot{\tau_6}}) \; \{\texttt{e}\}} \} \rightsquigarrow^T \\\\ \texttt{class} \: L_1[\overline{\texttt{X}}, \overline{\texttt{U}}, \overline{us} \; \texttt{where} \; \overline{C[\overline{\texttt{Y}}]}, \overline{cs}] \: \texttt{extends} \: L_2[\overline{\tau}] \; \{\overline{\texttt{fld}}, \; \overline{\texttt{meth}}\}}
+        \and
+        \inferrule[T-MethDecl]{\texttt{meth}, \Gamma \rightsquigarrow \texttt{meth}'}{\texttt{meth} \; \{\texttt{e}\}, \Gamma \rightsquigarrow \texttt{meth}'  \; \{\texttt{e}\}}
+    \end{mathpar}
+    \caption{Translation Rules}
+    \label{fig:interface-translation}
+\end{figure}
+
+\newpage
+
+\section{Well-formed Programs} \label{appendix:genus-wf}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[L-Cons]{Prog = {\overline{\texttt{CO}} \: \overline{\texttt{CL}}} }{Constraints(Prog) = \overline{\texttt{CO}}}
+        \and
+        \inferrule[L-Classes]{Prog = {\overline{\texttt{CO}} \: \overline{\texttt{CL}}} }{Constraints(Prog) = \overline{\texttt{CL}}}
+        \and
+        \inferrule[L-Con]{Constraints(Prog)_i = \texttt{constraint} \; C \; ... \; \{ ... \} }{Constraint(Prog, C) = Constraints(Prog)_i }
+        \and
+        \inferrule[L-Class]{ Classes(Prog)_i = \texttt{class} \; L \; ... \; \{ ... \} }{Class(Prog, L) = Classes(Prog)_i }
+        \and
+        \inferrule[L-F-L]{Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}} \; ...] \; ... \; \{ ... \; \tau \; f \; ...\} }{Field(Prog, L[\overline{\tau}], f) = \tau\{\overline{\tau}/\overline{\texttt{X}}\} }
+        \and`
+        \inferrule[L-Fs-L]{Class(Prog, L) = \texttt{class} \; L \; ... \; \{\overline{\tau \: f} \; ...\}}{Fields(Prog, L) = \overline{f}}
+        \and
+        \inferrule[L-Funcs-Con]{Constraint(Prog, C) = \texttt{constraint} \; C[\overline{\texttt{X}} \; ...] \; \texttt{extends} \; C'[...] \; \{ {\overline{\texttt{methSig}}}\} \\\\ Funcs(Prog, C') = \overline{m}}{Funcs(Prog, \Delta, C[\overline{\tau}]) = \overline{\texttt{methSig}}\{\overline{\tau}/\overline{\texttt{X}}\}, \overline{m}\{\overline{\tau}/\overline{\texttt{X}}\}}
+        \and
+        \inferrule[L-Funcs-Class]{Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}} \; ...] \; \texttt{extends} \; L'[...] \; \{... \; {\overline{\texttt{methSig} \; \{\texttt{e}\}}}\} \\\\ Funcs(Prog, L') = \overline{m}}{Funcs(Prog, \Delta, L[\overline{\tau}]) = \overline{\texttt{methSig}}\{\overline{\tau}/\overline{\texttt{X}}\}, \overline{m}\{\overline{\tau}/\overline{\texttt{X}}\}}
+        \and
+        \inferrule[L-Funcs-Var]{ \overline{C} = \{ C | C[\overline{\texttt{X'}}, \texttt{X}, \overline{\texttt{X''}}] \in \Delta \} \\\\
+        \overline{\texttt{mSig}} = \{ \texttt{mSig} \; | \; \exists C \in \overline{C}, \tau, \overline{\tau} \; . \; \texttt{mSig} \in Func(Prog, \Delta, C) \land \texttt{mSig} = \tau \; \texttt{X}.m(\overline{\tau}) \}
+        }{Funcs(Prog, \Delta, \texttt{X}) = \overline{\texttt{mSig}}}
+        \and
+        \inferrule[L-Func]{Funcs(Prog, \Delta, \tau) = \overline{m} \\\\
+        m_i = \tau_1 \; \tau_2.m[\beta](\overline{\tau_3})}{Func(Prog, \Delta, \tau, m) = m_i }
+        \and
+        \inferrule[L-M-Body]{Class(Prog, L) = \texttt{class} \; L[...] \; ... \; \{... \; \tau' \; \tau''.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau'''}]}](\overline{\tau'''' \; x})\{ \texttt{e} \} \; ... \}}{Meth(Prog, L, m) = \tau' \; \tau''.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau'''}]}](\overline{\tau'''' \; x})\{ \texttt{e} \}}
+    \end{mathpar}
+    \caption{Lookup Functions}
+    \label{fig:genus-lookup}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[S-Refl]{ }{Prog \vdash \tau \leq \tau}
+        \and
+        \inferrule[S-Trans]{Prog \vdash \tau_1 \leq \tau_2 \\ Prog \vdash \tau_2 \leq \tau_3}{Prog \vdash \tau_1 \leq \tau_3}
+        \and
+        \inferrule[S-Subclass]{ Class(Prog, L_1) = \texttt{class} \; L_1[\overline{\texttt{X}}] \; \texttt{extends} \; L_2[\overline{\tau_2}] \; \{ ... \} }{Prog\vdash L_1[\overline{\tau_1}] \leq L_2[\overline{\tau_2}\{\overline{\tau_1} / \overline{\texttt{X}} \}]}
+        \and
+        \inferrule[S-Object]{ }{Prog; \Gamma \vdash \tau \leq \textit{Object}}
+    \end{mathpar}
+    \caption{Subtyping Rules}
+    \label{fig:genus-subtyping}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+    \inferrule[E-Prereq]{Constraint(Prog, C_1) = \texttt{constraint} \; C_1[\overline{\texttt{X}_1}] \; \texttt{extends} \; C_2[\overline{\texttt{X}_2}] \; \{...\} }{Prog \vdash C_1[\overline{\tau}] \preceq C_2[\overline{\texttt{X}_2}\{\overline{\tau}/\overline{\texttt{X}_1}\}]}
+    \and
+    \inferrule[E-Trans]{Prog \vdash C_1[\overline{\tau_1}] \preceq C_2[\overline{\tau_2}] \\ Prog \vdash C_1[\overline{\tau_2}] \preceq C_2[\overline{\tau_3}]}{Prog \vdash C_1[\overline{\tau_1}] \preceq C_2[\overline{\tau_3}]}
+    \and
+    \inferrule[E-Reflex]{ }{Prog \vdash C[\overline{\tau}] \preceq C[\overline{\tau}]}
+    \end{mathpar}
+    \caption{Constraint Entailment}
+    \label{fig:genus-ce}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+    \inferrule[W-Subsume]{Prog; \Delta \vdash \overline{\tau} :: C_1[\overline{\tau_1}] \\ Prog \vdash C_1[\overline{\tau_1}] \preceq C_2[\overline{\tau_2}]}{Prog; \Delta \vdash \overline{\tau} :: C_2[\overline{\tau_2}]}
+    \and
+    \inferrule[W-Class]{Funcs(Prog, \Delta, C[\overline{\tau}]) \subseteq \bigcup_i Funcs(Prog, \Delta, \tau_i)}{Prog; \Delta \vdash \overline{\tau} :: C[\overline{\tau}]}
+    \end{mathpar}
+    \caption{Witness Relation}
+    \label{fig:genus-witness}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[W-Prog]{\forall C \in Constraints(Prog) \: . \: Prog \vdash C : \texttt{ok} \\\\
+        \forall L \in Classes(Prog) \: . \: Prog \vdash L : \texttt{ok} }{\vdash Prog : \texttt{ok}}
+    \end{mathpar}
+    \caption{Well-formed Programs}
+    \label{fig:genus-wfp}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[W-CDecl]{ \overline{\texttt{X}_2} \subseteq \overline{\texttt{X}_1} \\ \overline{\texttt{X}_3} \subseteq \overline{\texttt{X}_1} \\\\
+        \forall i \: . \: Prog; \overline{\texttt{X}_1}; \emptyset \vdash C_2[\overline{\texttt{X}_2}]_i : \texttt{ok} \\ Prog; \overline{\texttt{X}_1}; \emptyset \vdash C_3[\overline{\texttt{X}_3}] : \texttt{ok} \\\\
+        \forall i \: . \: Prog; \: \overline{\texttt{X}_1}; \overline{C_2[\texttt{X}_2]}, C_3[\texttt{X}_3] \vdash (\tau_1 \: \tau_2.m[\beta](\overline{\tau_3}))_i : \texttt{ok} \\ \forall i . \exists j \: . \: (\tau_2)_i = (\texttt{X}_1)_j \land (\texttt{X}_1)_j \notin \overline{\texttt{X}_2}}{Prog \vdash \; \texttt{constraint} \: C_1[\overline{\texttt{X}_1} \: \texttt{where} \: \overline{C_2[\overline{\texttt{X}_2}}]] \: \texttt{extends} \: C_3[\overline{\texttt{X}_3}] \; \{ \overline{\tau_1 \: \tau_2.m[\beta](\overline{\tau_3})} \} : \texttt{ok} }
+    \end{mathpar}
+    \caption{Well-Formed Constraint Declarations}
+    \label{fig:genus-wfc}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[W-LDecl]{\forall i \: . \: Prog; \overline{\texttt{X}}; \emptyset \vdash C[\overline{\tau_1}]_i : \texttt{ok} \\ Prog; \overline{\texttt{X}}; \emptyset \vdash L[\overline{\tau_2}] : \texttt{ok} \\ \forall i \; . \; Prog; \overline{\texttt{X}}; \overline{C[\overline{\tau_1}]} \vdash (\tau_f)_i : \texttt{ok} \\\\ 
+        \forall i \: . \: Prog; \overline{\texttt{X}}; \overline{C[\overline{\tau_1}]} \vdash (\tau_3 \: \tau_4.m[\beta](\overline{\tau_5})\{\texttt{e}\})_i : \texttt{ok} \\ \forall i \: . \: Prog; \overline{\texttt{X}}; \overline{C[\overline{\tau_1}]} \vdash (\tau_4)_i : L_1[\overline{\texttt{X}}] \\\\
+        (\exists j \; . \; Funcs(Prog, L_2)_j = \tau_3' \; \tau_4'.m[\beta](\overline{\tau_5'})) \implies \tau_3 = \tau_3' \land \forall k \; . \; (\tau_5)_k = (\tau_5')_k}{Prog \vdash \: \texttt{class} \: L_1[\overline{\texttt{X}} \: \texttt{where} \: \overline{C[\overline{\tau_1}}]] \: \texttt{extends} \:  L_2[\overline{\tau_2}] \{\overline{\tau_f \; f} \; \overline{\tau_3 \: \tau_4.m[\beta](\overline{\tau_5})\{\texttt{e}\}} \} : \texttt{ok} }
+    \end{mathpar}
+    \caption{Well-Formed Class Declarations}
+    \label{fig:genus-wfl}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[W-MethSig]{Prog; \Gamma; \Delta \vdash \tau_1 : \texttt{ok} \\ Prog; \Gamma; \Delta \vdash \tau_2 : \texttt{ok} \\\\
+        \forall i \; . \; Prog; \Gamma, \overline{\texttt{X}}; \Delta, \overline{C[\overline{\tau}]} \vdash (\tau_3)_i : \texttt{ok} \\ \forall i \; . \; Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash (C[\overline{\tau}])_i : \texttt{ok}}{Prog; \Gamma; \Delta \vdash \tau_1 \; \tau_2.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau}]}](\overline{\tau_3}) : \texttt{ok}}
+        \and
+        \inferrule[W-MethDecl]{Prog; \Gamma; \Delta \vdash \tau_1 \; \tau_2.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau}]}](\overline{\tau_3}) : \texttt{ok} \\\\
+        Prog; \Gamma, \overline{\texttt{X}}; \Delta, \overline{C[\overline{\tau}]}; \texttt{this} : \tau_2, \overline{x : \tau_3} \vdash \texttt{e} : \tau_1}{Prog; \Gamma; \Delta \vdash \tau_1 \; \tau_2.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau}]}](\overline{\tau_3 \; x}) \; \{ \texttt{e} \} : \texttt{ok}}
+    \end{mathpar}
+    \caption{Well-Formed Methods}
+    \label{fig:genus-wfm}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[W-TVar]{\texttt{X} \in \Gamma}{Prog; \Gamma; \Delta \vdash \texttt{X} : \texttt{ok}}
+        \and
+        \inferrule[W-TL]{Class(Prog, L) = \texttt{class} \: L[\overline{\texttt{X}} \: \texttt{where} \: \overline{C[\overline{\tau_2}}]] \: \texttt{extends} \:  L_2[\overline{\tau_3}] \{...\} \\\\
+        \forall i \: . \: Prog; \Gamma; \Delta \vdash (\tau_1)_i : \texttt{ok} \\ \#(\overline{\tau_1}) = \#(\overline{\texttt{X}}) \\\\
+        Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash L_2[\overline{\tau_3}\{\overline{\tau_1}/\overline{\texttt{X}}\}] : \texttt{ok} \\ \forall i \; . \; Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash C[\overline{\tau_2}\{\overline{\tau_1}/\overline{\texttt{X}}\}]_i : \texttt{ok} \\\\
+        \forall i \; . \; Prog; \Gamma; \Delta \vdash (\overline{\tau_2} \{\overline{\tau_1}/\overline{\texttt{X}}\})_i :: C[\overline{\tau_2} \{\overline{\tau_1}/\overline{\texttt{X}}\}]_i}{Prog; \Gamma; \Delta \vdash L[\overline{\tau_1}] : \texttt{ok}}
+        \and
+        \inferrule[W-TC]{Constraint(Prog, C) = \texttt{constraint} \: C[\overline{\texttt{X}} \: \texttt{where} \: \overline{C_2[\overline{\texttt{Y}}}]] \: \texttt{extends} \:  C_3[\overline{\texttt{Z}}] \{...\} \\\\
+        \forall i \: . \: Prog; \Gamma; \Delta \vdash \tau_i : \texttt{ok} \\ \#(\overline{\tau}) = \#(\overline{\texttt{X}}) \\\\
+        \forall i \; . \; Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash C_2[\overline{\texttt{Y}}\{\overline{\tau}/\overline{\texttt{X}}\}]_i : \texttt{ok}  \\ Prog; \Gamma, \overline{\texttt{X}}; \Delta \vdash C_3[\overline{\texttt{Z}}\{\overline{\tau}/\overline{\texttt{X}}\}] : \texttt{ok} \\\\
+        \forall i \; . \; Prog; \Gamma; \Delta \vdash (\overline{\texttt{Y}} \{\overline{\tau}/\overline{\texttt{X}}\})_i :: C_2[\overline{\texttt{Y}} \{\overline{\tau}/\overline{\texttt{X}}\}]_i}{Prog; \Gamma; \Delta \vdash C[\overline{\tau}] : \texttt{ok}}
+    \end{mathpar}
+    \caption{Well-Formed Types and Constraints}
+    \label{fig:genus-wft}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+        \inferrule[var-x]{ }{Prog; \Gamma; \Delta; E \vdash x : E(x)}
+        \and
+        \inferrule[var-this]{ }{Prog; \Gamma; \Delta; E \vdash \texttt{this} : E(\texttt{this})}
+        \and
+        \inferrule[fld]{Prog; \Gamma; \Delta; E \vdash e : L[\overline{\tau_1}] \\\\
+        Class(Prog, L) = \texttt{class} \: L[\overline{\texttt{X}}] \: ... \: \{... \: \tau_2 \: f \: ...\}}{Prog; \Gamma; \Delta; E \vdash e.f : \tau_2\{\overline{\tau_1}/\overline{\texttt{X}}\}}
+        \and
+        \inferrule[fld-ass]{Prog; \Gamma; \Delta; E \vdash e_1.f : \tau \\\\
+        Prog; \Gamma; \Delta; E, \vdash e_2 : \tau}{Prog; \Gamma; \Delta; E \vdash e_1.f = e_2 : \tau}
+        \and
+        \inferrule[new]{Prog; \Gamma \vdash L[\overline{\tau_1}] : \texttt{ok} \\\\
+        \forall i \: . \: Prog; \Gamma; \Delta; E \vdash \texttt{e}_i: Field(Prog, L[\overline{\tau_1}], f_i) \\\\
+        \overline{f} = Fields(Prog, L)}{Prog; \Gamma; \Delta; E \vdash \texttt{new} \: L[\overline{\tau_1}](\overline{f = \texttt{e}}) : L[\overline{\tau_1}]}
+        \and
+        \inferrule[m-call]{Prog; \Gamma; \Delta; E \vdash \texttt{e}_1 : \tau_1  \\ \forall i \: . \: Prog; \Gamma \vdash (\tau_2)_i : \texttt{ok} \\\\
+        Func(Prog, \Delta, \tau_1, m) = \tau_3 \; \tau_1.m[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau_5}]}](\overline{\tau_4})\\\\
+        \forall i \; . \; Prog; \Gamma; \Delta; E \vdash (\texttt{e}_4)_i : (\tau_4\{\overline{\tau_2}/\overline{\texttt{X}}\})_i \\\\
+         \forall i \; . \; Prog; \Delta \vdash (\overline{\tau_5} \{\overline{\tau_2}/\overline{\texttt{X}}\})_i :: C[\overline{\tau_5} \{\overline{\tau_2}/\overline{\texttt{X}}\}]_i}{Prog; \Gamma; \Delta; E \vdash \texttt{e}_1.m[\overline{\tau_2}](\overline{\texttt{e}_4}) : \tau_3}
+        \and
+        \inferrule[Subsumption]{Prog; \Gamma; \Delta; E \vdash \texttt{e} : \tau_1 \\\\
+        Prog \vdash \tau_1 \leq \tau_2}{Prog; \Gamma; \Delta; E \vdash \texttt{e} : \tau_2}
+    \end{mathpar}
+    \caption{Well-Formed Expressions}
+    \label{fig:genus-wfe}
+\end{figure}
+
+\newpage
+
+\section{Runtime Specification} \label{sec:genus-rs}
+
+\begin{figure}[H]
+    \centering
+    \begin{align*}
+        &\chi & &\in & &Heap & &= Addr \to Object \\
+        &\phi & &\in & &StackFrame & &= Addr \times \Omega \times (VarId \mapsto Value) \\
+        &\iota & &\in & &Addr & & \\
+        &v & &\in & &Value & &= Addr \\
+        & & & & &Object & &= ClassId \times \Omega \times (FieldId \mapsto Value) \\
+        &\Omega & &\in & &RuntimeEnv & &= \texttt{X} \mapsto \sigma \\
+        &\sigma & &\in & &ConcreteType & &= L[\overline{\sigma}]
+    \end{align*}
+    \caption{Runtime Entities}
+    \label{fig:genus-runent}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \begin{align*}
+    &resolve :: \tau \times \Omega \to \sigma \\
+    &resolve(\texttt{X}, \Omega) = \Omega(\texttt{X}) \\
+    &resolve(L[\overline{\tau}], \Omega) = L[\overline{resolve(\tau)}]
+    \end{align*}
+    \caption{Resolve Function}
+    \label{fig:genus-resolve}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+    \inferrule[val]{v \; \in \; Value}{v, \phi, \chi \rightsquigarrow_P v, \chi}
+    \and
+    \inferrule[this]{ }{\texttt{this}, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P \iota, \chi}
+    \and
+    \inferrule[var]{\texttt{vMap}(x) = v}{x, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P v, \chi}
+    \and
+    \inferrule[fld]{\texttt{e}, \phi, \chi \rightsquigarrow_P \iota, \chi'}{\texttt{e}.f, \phi, \chi \rightsquigarrow_P \chi'(\iota, f), \chi'}
+    \and
+    \inferrule[fldAss]{\texttt{e}, \phi, \chi \rightsquigarrow_P \iota, \chi'' \\\\
+    \texttt{e}', \phi, \chi'' \rightsquigarrow_P v, \chi''' \\\\
+    \chi' = \chi'''[\iota, f \mapsto v]}{\texttt{e}.f = \texttt{e}', \phi, \chi \rightsquigarrow_P v, \chi'}
+    \and
+    \inferrule[new]{\texttt{e}_i, \phi, \chi_i \rightsquigarrow_P v_i, \chi_{i+1} \quad (i = 0, ..., n-1) \\\\
+    \iota' \; \texttt{new in} \; \chi_n \\\\
+    Class(Prog, L) = \texttt{class} \; [\overline{\texttt{X}}] \; ... \\\\
+    \chi' = \chi_n[\iota' \mapsto (L, (\overline{\texttt{X} \mapsto resolve(\tau, \Omega)}), (\overline{f \mapsto v}))]}{\texttt{new} \; L[\overline{\tau}](f_0 = \texttt{e}_0, ..., f_{n-1} = \texttt{e}_{n-1}), (\iota, \Omega, \texttt{vMap}), \chi_0 \rightsquigarrow_P \iota, \chi'}
+    \and
+    \inferrule[mCall]{\texttt{e}, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P \iota', \chi_0 \\\\
+    \chi_0(\iota') = (L, \Omega', \_) \\\\
+    \texttt{e}_i, \phi, \chi_i \rightsquigarrow_P v_i, \chi_{i+1} \quad (i=0, ..., k-1) \\\\
+    \tau' \; \tau''.m[\overline{\texttt{X}}](\overline{\tau''' \; x})\{\texttt{e}'\} = Meth(Prog, L, m) \\\\
+    \texttt{e}', (\iota', (\overline{\texttt{X} \mapsto resolve(\tau, \Omega)} \cup \Omega'), (\overline{x \mapsto v}), \chi_k \rightsquigarrow_P v, \chi'}{\texttt{e}.m[\tau_1, ..., \tau_n](\texttt{e}_1, ..., \texttt{e}_k), (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P v, \chi'}
+    \end{mathpar}
+    \caption{Operational Semantics}
+    \label{fig:genus-opsem}
+\end{figure}
+
+\newpage
+
+\section{Soundness}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+    \inferrule[S-Concrete]{Class(Prog, L_1) = \texttt{class} \; L_1[\overline{\texttt{X}}] \; \texttt{extends} \; L_2[\overline{\tau}] \{...\} }{Prog \vdash L_1[\overline{\sigma_1}] \leq L_2[\overline{\sigma_2}\{\overline{\sigma_1}/\overline{\texttt{X}}\}]}
+    \and
+    \inferrule[S-Concrete-Trans]{Prog \vdash \sigma_1 \leq \sigma_2 \\ Prog \vdash \sigma_2 \leq \sigma_3}{Prog \vdash \sigma_1 \leq \sigma_3}
+    \and
+    \inferrule[S-Concrete-Refl]{ }{Prog \vdash \sigma \leq \sigma}
+    \end{mathpar}
+    \caption{Extension of Rules to Concrete Types}
+    \label{fig:my_label}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+    \inferrule[A-Null]{Class(Prog, L) \neq \bot}{Prog, \chi \vdash \texttt{null} <: L[\overline{\sigma}]}
+    \and
+    \inferrule[A-Addr]{\chi(\iota) = (L, \Omega, \_) \\
+    Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}}] \; ... \\\\
+    \sigma \equiv resolve(L[\overline{\texttt{X}}], \Omega)}{Prog, \chi \vdash \iota <: \sigma}
+    \and
+    \inferrule[A-Sub]{Prog, \chi \vdash v <: \sigma' \\ Prog \vdash \sigma' \leq \sigma}{Prog, \chi \vdash v <: \sigma}
+    \and
+    \inferrule[SA-Null]{Prog, \chi \vdash \texttt{null} <: \sigma}{Prog, \chi \vdash \texttt{null} \triangleleft \sigma}
+    \and
+    \inferrule[SA-Addr]{\chi(\iota) = (L, \Omega, \_) \\ Prog, \chi \vdash \iota <: \sigma \\ Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}} \; \texttt{where} \; \overline{C[\overline{\tau}]}] \; ...\\\\
+    \forall f \; . \; Field(Prog, L, f) = \tau \implies Prog, \chi \vdash \chi(\iota)\downarrow_3(f) \triangleleft resolve(\tau, \Omega) \\\\
+    \forall i \; . \; Prog; \emptyset \vdash \overline{resolve(\tau, \Omega)} :: C[\overline{resolve(\tau, \Omega)}]_i}{Prog, \chi \vdash \iota \triangleleft \sigma}
+    \end{mathpar}
+    \caption{Agreement}
+    \label{fig:genus-agreement}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{mathpar}
+    \inferrule[]{Prog, \chi \vdash \iota \triangleleft resolve(E(\texttt{this}), \Omega) \\\\
+    \forall x \in dom(\texttt{vMap}) \; . \; Prog, \chi \vdash \texttt{vMap}(x) \triangleleft resolve(E(x), \Omega) \\\\
+    \forall \iota' \in dom(\chi) \; . \; (\chi(\iota') = (L, \Omega', \_) \land Class(Prog, L) = \texttt{class} \; L[\overline{\texttt{X}}] \\\\
+    \quad\quad\quad\quad\quad\quad\quad\quad\quad \implies Prog, \chi \vdash \iota' \triangleleft L[\overline{resolve(\texttt{X}, \Omega'})]) \\\\
+    \forall i \; . \; C[\overline{\tau}]_i = \Delta_i \implies Prog; \Delta \vdash \overline{resolve(\tau, \Omega)} :: C[\overline{resolve(\tau, \Omega)]}}{Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond}
+    \end{mathpar}
+    \caption{Well-formed Heap and Stack}
+    \label{fig:my_label}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{multline*}
+        \forall \; Prog, \Gamma, \Delta, E, \texttt{e}, \chi, \iota, \Omega, \texttt{vMap}, \tau \; . \; ( \; \vdash Prog : \texttt{ok} \land Prog; \Gamma; \Delta; E \vdash \texttt{e} : \tau \\ \land Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi \; \diamond
+        \land \; \texttt{e}, (\iota, \Omega, \texttt{vMap}), \chi \rightsquigarrow_P v, \chi' \\ \implies Prog, \chi' \vdash v \triangleleft resolve(\tau, \Omega) \land Prog; \Delta; E \vdash (\iota, \Omega, \texttt{vMap}), \chi' \; \diamond)
+    \end{multline*}
+    \caption{Theorem of Soundness}
+    \label{fig:genus-soundness}
+\end{figure}

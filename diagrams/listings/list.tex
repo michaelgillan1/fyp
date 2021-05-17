@@ -1,0 +1,68 @@
+\begin{lstlisting}
+class List[A #any] {
+  ListNode[A] _head;
+  ListNode[A] _tail;
+  int _size;
+  
+  ...
+
+  box index(int i) : this->ListNode[A] {
+    node = _head (*@\highcode{as this->ListNode[A]}@*);
+    
+    (*@\highcode{for (int i = 0; i < \_size; i++)}@*) {
+      node = node.next() (*@\highcode{as this->ListNode[A]}@*);
+    }
+    
+    return node;
+  }
+  
+  box head() : this->ListNode[A] {
+    return _head (*@\highcode{as this->ListNode[A]}@*);
+  }
+  
+  ref push(A a) : (*@\highcode{void}@*) {
+    append_node(new ListNode[A](_item = a = null) ref);
+  }
+  
+  ref pop() : A- {
+    _size = _size - 1;
+    t = _tail = null;
+    _tail = t._prev = null;
+    return _t = null;
+  }
+  
+  box clone() : List[this->A+]- {
+    out = new List[A](_head = null, _tail = null, _size = 0) ref;
+    
+    (*@\highcode{for (int i = 0; i < \_size; i++)}@*) {
+      out.push(this.index(i));
+    }
+    
+    return out;
+  }
+  
+  box map[B #any]((*@\highcode{\{(this->A+) : B-\}}@*) func) : List[B]- {
+    return _map[B](_head, 
+                   func, 
+                   new List[B](_head = null,
+                               _tail = null,
+                               _size = 0) 
+                   ref);
+  }
+
+  box _map[B #any](
+      this->ListNode[A] last, 
+      (*@\highcode{\{(this->A+) : B-\}}@*) func, 
+      List[B] acc) : List[B]- {
+    acc.push((*@\highcode{func}@*)(ln));
+    (*@\highcode{if (ln.next() != null)}@*) {
+      _map[B](ln.next() as this->ListNode[A], func, acc);
+    } else {
+      return acc;
+    }
+  }
+  ...
+}
+
+\end{lstlisting}
+

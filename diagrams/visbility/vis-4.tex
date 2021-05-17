@@ -1,0 +1,18 @@
+\begin{tikzpicture}[auto,node distance=1.5cm]
+    \node[entity] (actor) {$\alpha$};
+    \node[entity] (obj1) [below = of actor] {$\iota_1$};
+    \node[entity] (obj2) [below left = of obj1]  {$\iota_2$};
+    \node[entity] (obj3) [below right = of obj1]  {$\iota_3$};
+    \node (blank) [below = of obj1] {};
+    \node[entity] (obj4) [below = of blank]  {$\iota_4$};
+    \draw[->] (actor)
+        edge	 node {\texttt{x}, \textit{iso}}    (obj1);
+    \draw[->] (obj1)
+        edge	 node {\texttt{f1}, \textit{ref}}	(obj2);
+    \draw[->] (obj1)
+        edge	 node {\texttt{f2}, \textit{ref}}	(obj3);
+    \draw[->] (obj2)
+        edge	 node {\texttt{f}, \textit{ref}}	(obj4);
+    \draw[->] (obj3)
+        edge	 node {\texttt{f}, \textit{ref}}	(obj4);
+\end{tikzpicture}

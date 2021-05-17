@@ -1,0 +1,66 @@
+\chapter{Pony \texttt{List}} \label{appendix:list}
+
+\begin{lstlisting}
+class List[A] is Seq[A]
+ 
+  ...
+
+  new create(len: USize = 0) =>
+    None
+
+  fun index(i: USize): this->ListNode[A] ? =>
+    if i >= _size then
+      error
+    end
+
+    var node = _head as this->ListNode[A]
+    var j = USize(0)
+
+    while j < i do
+      node = node.next() as this->ListNode[A]
+      j = j + 1
+    end
+
+    node
+
+  fun head(): this->ListNode[A] ? =>
+    _head as this->ListNode[A]
+
+  fun ref push(a: A) =>
+    append_node(ListNode[A](consume a))
+
+  fun ref pop(): A^ ? =>
+    tail()? .> remove().pop()?
+
+  fun clone(): List[this->A!]^ =>
+    let out = List[this->A!]
+
+    for v in values() do
+      out.push(v)
+    end
+    out
+
+  fun map[B](f: {(this->A!): B^} box): List[B]^ =>
+    try
+      _map[B](head()?, f, List[B])
+    else
+      List[B]
+    end
+
+  fun _map[B](
+    ln: this->ListNode[A],
+    f: {(this->A!): B^} box,
+    acc: List[B])
+    : List[B]^
+  =>
+    try acc.push(f(ln()?)) end
+
+    try
+      _map[B](ln.next() as this->ListNode[A], f, acc)
+    else
+      acc
+    end
+    
+    ... 
+end
+\end{lstlisting}
